@@ -11,9 +11,12 @@ Até o momento, temos:
     ├── list.html                                   # lista de exercícios em html - wip¹
 ```
 
-## Acesso às páginas
+## Acesso ao conteúdo
 
-* [Modelagem Preditiva Avanaçada - Lista 1](https://github.com/dgslv/insper/blob/master/advanced%20predictive%20modeling/list.html)
+* [Modelagem Preditiva Avançada - Lista 1.html](https://github.com/dgslv/insper/blob/master/advanced%20predictive%20modeling/list.html)
+* [Modelagem Preditiva Avançada - Lista 1.Rmd](https://github.com/dgslv/insper/blob/master/advanced%20predictive%20modeling/list.Rmd)
+
+<br />
 
 > Obs: *Ao decorrer da resolução das atividades, este projeto poderá sofrer alterações.*
 > 
