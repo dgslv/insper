@@ -9,7 +9,7 @@ Até o momento, temos:
 ├── advanced predictive modeling                    # pasta de exercícios da disciplina
     ├── list.Rmd                                    # lista de exercícios - wip¹ 
     ├── list.html                                   # lista de exercícios em html - wip¹
-├── .gitingore                                      # regras de arquivos a serem ignorados ou considerados
+├── .gitignore                                      # regras de arquivos a serem ignorados ou considerados
 ├── README.md                                       # descrição do projeto
 ```
 
