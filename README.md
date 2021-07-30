@@ -7,8 +7,9 @@ Até o momento, temos:
 ```
 .
 ├── advanced predictive modeling                    # pasta de exercícios da disciplina
-    ├── list.Rmd                                    # lista de exercícios
+    ├── list.Rmd                                    # lista de exercícios - wip
 ```
 
 > Obs: *Ao decorrer da resolução das atividades, este projeto poderá sofrer alterações.*
+> Obs: 
     
