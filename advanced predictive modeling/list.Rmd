@@ -24,9 +24,6 @@ output:
 \n
 
 ## Carregando bibliotecas
-```{r} 
-install.packages("languageserver")
-```
 
 ```{r, cache=TRUE, echo=TRUE}
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
