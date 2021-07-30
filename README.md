@@ -1,6 +1,6 @@
 # Insper -  Programa Avançado de Ciência de Dados e Decisão 
 
-Este projeto servirá de repositório para o armazenamento de exercícios realizados durante o curso descrito, assim como para acompanhar aa evolução nd conhecimento continuamente proporcionada nas disciplinas.
+Este projeto servirá de repositório para o armazenamento de exercícios realizados durante o curso descrito, assim como para acompanhar a evolução do conhecimento continuamente proporcionada nas disciplinas.
 
 Até o momento, temos:
 
