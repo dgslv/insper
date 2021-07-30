@@ -5,13 +5,10 @@ Este projeto servirá de repositório para o armazenamento de exercícios realiz
 Até o momento, temos:
 
 ```
-# Lista de exercícios 
-
-./advanced predictive modeling # guardará exercícios realizados da disciplina de modelagem preditiva avançada
-
---
 .
-.
-.
-loading...
+├── advanced predictive modeling                    # pasta de exercícios da disciplina
+    ├── list.Rmd                                    # lista de exercícios
 ```
+
+> Obs: *Ao decorrer da resolução das atividades, este projeto poderá sofrer alterações.*
+    
