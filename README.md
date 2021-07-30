@@ -8,7 +8,7 @@ Até o momento, temos:
 .
 ├── advanced predictive modeling                    # pasta de exercícios da disciplina
     ├── list.Rmd                                    # lista de exercícios - wip¹ 
-    ├── list.html                                   # lista de exercícios em html - wip¹ 
+    ├── list.html                                   # lista de exercícios em html - wip¹
 ```
 
 > Obs: *Ao decorrer da resolução das atividades, este projeto poderá sofrer alterações.*
