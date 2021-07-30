@@ -1,0 +1,256 @@
+---
+title: "Modelagem Preditiva Avançada"
+subtitle: "Lista 1 - Diego Silva"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+<br />
+
+> 1 - Apresente a análise da Atividade Integradora do trimestre passado usando o tidymodels. Não é necessário reproduzir todos os passos e ajustar todos os modelos, considere ajustar pelo menos 2 modelos preditivos fazendo a escolha de hiperparâmetros para avaliar o poder preditivo e decidir qual é o melhor modelo de acordo com uma métrica.
+> 
+> <br > 
+>
+> **Com objetivo de praticar a aplicação e avaliação dos modelos lecionados durante as aulas ministradas até o momento, iremos utilizar:**
+>
+> * *LASSO*
+> * *KNN*
+> * *Regressão Logística*;
+> * *Árvore de Decisão*;
+> * *Random Forest*;
+> * *XGBoost*;
+
+\n
+\n
+
+## Carregando bibliotecas
+```{r} 
+install.packages("languageserver")
+```
+
+```{r, cache=TRUE, echo=TRUE}
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+library(tidymodels)
+library(tidyverse)
+library(dplyr)
+library(gapminder)
+library(rsample)
+library(Metrics)
+library(ISLR)
+library(doParallel)
+library(yardstick)
+library(readr)
+```
+
+
+## Lendo o conjunto de dados
+```{r}
+
+df = read.csv2('data-treated.csv', sep=',')
+
+df$J1 <- as.factor(df$J1)
+
+set.seed(123)
+split <- initial_split(df, prop = .8, strata = "J1")
+
+train <- training(split)
+test <- testing(split)
+```
+
+## Criando os folds para validação cruzada que será utilizada posteriormente nos modelos
+
+```{r}
+
+cv_folds <- vfold_cv(train, v = 10)
+
+cv_folds
+```
+
+## Criando tabela para armazenar os resultados da análise
+
+```{r}
+results <- tibble(model = c("regressao logistica", "árvore de decisão", "floresta aleatória", "xgboost"), threshold = NA_integer_,  accuracy = NA_integer_, fbeta = NA_integer_, recall = NA, precision = NA_integer_)
+```
+
+## Aplicação dos modelos
+
+<br />
+
+### Regressão logística
+
+```{r}
+
+lr_recipe <- recipe(J1 ~ ., train) %>% # define a receita, com a variavel resposta e os dados de treinamento
+  step_normalize(all_numeric())
+
+lr_prep <- prep(lr_recipe)# prepara a receita definida acima
+
+lr_juiced <- juice(lr_prep) # obtem os dados de treinamento processados
+
+baked_test <- bake(lr_prep, new_data = test) # obtem os dados de teste processados
+
+lr_fit <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  fit(J1 ~ ., lr_juiced) %>% 
+  set_mode("classification")
+
+
+lr_results <- lr_fit %>% 
+  predict(new_data = baked_test, type = "prob") %>% 
+  mutate(observed = test$J1, modelo = "logistic regression") 
+
+
+cortes <- seq(0.01, 0.99, 0.01)
+
+get_predictions_from_threshold <- function(threshold, df_gpft) {
+  results <- df_gpft %>% 
+    mutate(threshold_preds = ifelse(df_gpft$.pred_1 >= threshold, 1, 0)) %>% 
+    mutate(observed = as.numeric(as.character(observed)), threshold_preds = as.numeric(as.character(threshold_preds)))
+           
+   tibble(fbeta = Metrics::fbeta_score(results$observed, results$threshold_preds),
+         acc = Metrics::accuracy(results$observed, results$threshold_preds),
+         precision = Metrics::precision(results$observed, results$threshold_preds),
+         recall = Metrics::recall(results$observed, results$threshold_preds),
+         threshold = threshold
+         )
+}
+
+final_results <- tibble(fbeta = NA, acc = NA, fscore = NA, precision = NA, recall = NA)
+
+final_results <- bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = lr_results))
+
+best_lr <- final_results %>% 
+  arrange(desc(fbeta)) %>% 
+  slice(1)
+
+best_lr
+```
+<br />
+
+```{r}
+results
+```
+
+
+> O corte que apresentou o melhor valor para fbeta foi o 0.4. Iremos armazená-lo em nossa tabela de resultados.
+
+```{r}
+
+results$threshold[results$model == 'regressao logistica'] = best_lr$threshold[1]
+results$accuracy[results$model == 'regressao logistica'] = best_lr$acc[1]
+results$fbeta[results$model == 'regressao logistica'] = best_lr$fbeta[1]
+results$recall[results$model == 'regressao logistica'] = best_lr$recall[1]
+results$precision[results$model == 'regressao logistica'] = best_lr$precision[1]
+
+results %>% 
+  slice(1)
+```
+
+### Árvore de Decisão
+
+<br /> 
+
+> Para a Árvore de Decisão, iremos realizar o *tuning* dos parâmetros para avaliarmos o seu poder preditivo e aplicaremos validação cruzada para estimarmos o erro de classificação.
+>
+> <br />
+>
+> **Disclaimer*: A fins de prática, será realizada novamente a receita e sua preparação.*
+
+```{r}
+tree_recipe <- recipe(J1 ~ ., train) %>% 
+  step_normalize(all_numeric())
+
+tree_prep <- prep(tree_recipe)
+
+tree_juiced <- juice(tree_prep)
+
+tree_baked <- bake(tree_prep, new_data = test)
+
+```
+
+> Após a preparação da receita, iremos criar e ajustar a árvore de decisão tunada. 
+
+<br />
+
+> Adicionando paralelismo
+
+```{r}
+doParallel::registerDoParallel()
+```
+
+<br />
+
+> Especificando a árvore de decisão tunada
+
+```{r}
+
+tree <- decision_tree(
+  tree_depth = tune(), 
+  cost_complexity = tune()) %>%
+  set_engine("rpart") %>% 
+  set_mode("classification") 
+
+
+tree
+```
+> Tunando a árvore
+
+```{r}
+tune_tree <- tune_grid(
+  tree,
+  tree_recipe,
+  resamples = cv_folds,
+  grid = 30,
+  metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas)
+  )
+
+tune_tree
+```
+
+> Analisando o gráfico contendo as métricas e os valores obtidos para cada um dos valores assumidos para os hiperparâmetros tunados:
+
+```{r}
+autoplot(tree_fit)
+```
+
+> Coletando as métricas
+
+```{r}
+
+tree_fit %>% 
+  collect_metrics() %>% 
+  head(5)
+```
+
+
+> Selecionando os melhores valores para os hiperparâmetros pela curva roc e salvando-os para registrarmos em nossos resultados.
+
+
+```{r}
+best_tree <- tree_fit %>% 
+  select_best("roc_auc") 
+
+
+tree_fit %>% 
+  collect_metrics() %>% 
+  
+tree_fit %>% 
+  collect_metrics() %>% 
+  which(cost_complexity == best_tree$cost_complexity & tree_depth == best_tree$tree_depth[1])
+```
+
+```{r}
+fit_tree <- finalize_model(tree, parameters = best_tree)
+
+
+tree_fit %>% 
+  select_best()
+  
+```
+
+
+
+
+
+
