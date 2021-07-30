@@ -4,7 +4,6 @@ subtitle: "Lista 1 - Diego Silva"
 output:
   html_document:
     df_print: paged
-    code_folding: hide
 ---
 <br />
 
