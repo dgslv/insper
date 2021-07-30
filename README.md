@@ -13,8 +13,8 @@ Até o momento, temos:
 
 ## Acesso ao conteúdo
 
-* [Modelagem Preditiva Avançada - Lista 1.html](https://github.com/dgslv/insper/blob/master/advanced%20predictive%20modeling/list.html)
-* [Modelagem Preditiva Avançada - Lista 1.Rmd](https://github.com/dgslv/insper/blob/master/advanced%20predictive%20modeling/list.Rmd)
+* [Modelagem Preditiva Avançada - Lista 1.html](https://dgslv.github.io/insper/advanced%20predictive%20modeling/list.html)
+* [Modelagem Preditiva Avançada - Lista 1.Rmd](https://dgslv.github.io/insper/master/advanced%20predictive%20modeling/list.Rmd)
 
 <br />
 
