@@ -11,6 +11,7 @@ Até o momento, temos:
     ├── list.html                                   # lista de exercícios em html - wip¹
 ├── .gitignore                                      # regras de arquivos a serem ignorados ou considerados
 ├── README.md                                       # descrição do projeto
+├── update-repo.sh                                  # shell script para agilizar o envio de atualizações ao repo 
 ```
 
 ## Acesso ao conteúdo
