@@ -26,7 +26,6 @@ output:
 ```{r, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE, warning = FALSE)
 ```
-## Carregando bibliotecas
 
 ```{r, cache=TRUE, echo=FALSE}
 library(tidymodels)
@@ -318,6 +317,6 @@ rf_prep <- prep(rf_recipe)
 
 rf_baked_train <- bake(rf_prep, new_data = NULL)
 
-rf_baked_test <- bake()
+rf_baked_test <- bake(rf_prep, new_data = test)
 ```
 

@@ -185,9 +185,6 @@ pre code {
 <li><em>XGBoost</em>;</li>
 </ul>
 </blockquote>
-<div id="carregando-bibliotecas" class="section level2">
-<h2>Carregando bibliotecas</h2>
-</div>
 <div id="lendo-o-conjunto-de-dados" class="section level2">
 <h2>Lendo o conjunto de dados</h2>
 <pre class="r"><code>df &lt;- read_csv(&#39;data-treated.csv&#39;)</code></pre>
@@ -325,9 +322,9 @@ results &lt;- results %&gt;%
 </div>
 <div id="regressão-logística" class="section level3">
 <h3>Regressão logística</h3>
-</div>
-<div id="preparando-a-receita-para-a-aplicação-do-modelo-logístico" class="section level3">
-<h3>Preparando a receita para a aplicação do modelo logístico</h3>
+<blockquote>
+<p>Preparando a receita para a aplicação do modelo logístico</p>
+</blockquote>
 <pre class="r"><code>lr_recipe &lt;- recipe(J1 ~ ., train) %&gt;% # define a receita, com a variavel resposta e os dados de treinamento
   step_normalize(all_numeric())
 
@@ -336,9 +333,6 @@ lr_prep &lt;- prep(lr_recipe)# prepara a receita definida acima
 lr_juiced &lt;- juice(lr_prep) # obtem os dados de treinamento processados
 
 baked_test &lt;- bake(lr_prep, new_data = test) # obtem os dados de teste processados</code></pre>
-</div>
-<div id="section" class="section level3">
-<h3></h3>
 <pre class="r"><code>lr_fit &lt;- logistic_reg() %&gt;% 
   set_engine(&quot;glm&quot;) %&gt;% 
   fit(J1 ~ ., lr_juiced) %&gt;% 
@@ -446,6 +440,22 @@ fitted_tree &lt;- fit_tree %&gt;%
 
 results &lt;- results %&gt;% 
   bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = fitted_tree, model = &#39;tree&#39;))</code></pre>
+</div>
+<div id="floresta-aleatória" class="section level3">
+<h3>Floresta Aleatória</h3>
+<blockquote>
+<p>Assim como na Árvore de Decisão, também realizaremos o tunning dos hiperparâmetros e validação cruzada para estimarmos o erro de classificação.</p>
+</blockquote>
+<blockquote>
+<p>Começaremos pela receita</p>
+</blockquote>
+<pre class="r"><code>rf_recipe &lt;- recipe(J1 ~ ., data = train)
+
+rf_prep &lt;- prep(rf_recipe)
+
+rf_baked_train &lt;- bake(rf_prep, new_data = NULL)
+
+rf_baked_test &lt;- bake(rf_prep, new_data = test)</code></pre>
 </div>
 </div>
 
