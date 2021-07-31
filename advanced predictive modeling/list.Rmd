@@ -23,27 +23,27 @@ output:
 \n
 \n
 
+```{r, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
 ## Carregando bibliotecas
 
-```{r, cache=TRUE, echo=TRUE}
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```{r, cache=TRUE, echo=FALSE}
 library(tidymodels)
 library(tidyverse)
-library(dplyr)
 library(gapminder)
 library(rsample)
-library(Metrics)
-library(ISLR)
 library(doParallel)
 library(yardstick)
 library(readr)
+library(skimr)
 ```
 
 
 ## Lendo o conjunto de dados
-```{r}
+```{r, reading-data}
 
-df = read.csv2('data-treated.csv', sep=',')
+df <- read_csv('data-treated.csv')
 
 df$J1 <- as.factor(df$J1)
 
@@ -56,7 +56,7 @@ test <- testing(split)
 
 ## Criando os folds para validação cruzada que será utilizada posteriormente nos modelos
 
-```{r}
+```{r, creating-cv-folds}
 
 cv_folds <- vfold_cv(train, v = 10)
 
@@ -65,17 +65,123 @@ cv_folds
 
 ## Criando tabela para armazenar os resultados da análise
 
-```{r}
-results <- tibble(model = c("regressao logistica", "árvore de decisão", "floresta aleatória", "xgboost"), threshold = NA_integer_,  accuracy = NA_integer_, fbeta = NA_integer_, recall = NA, precision = NA_integer_)
+```{r, creating-results-tibble}
+results <- tibble(model = NA_character_, threshold = NA_integer_,  accuracy = NA_integer_, fbeta = NA_integer_, recall = NA, precision = NA_integer_)
+```
+
+## Definindo função para calculo das métricas para cada valor de corte 
+
+```{r, defining-gpft}
+cortes <- seq(0.01, 0.99, 0.01)
+
+get_predictions_from_threshold <- function(threshold, df_gpft, model) {
+  results <- df_gpft %>% 
+    mutate(threshold_preds = ifelse(df_gpft$.pred_1 >= threshold, 1, 0)) %>% 
+    mutate(observed = as.numeric(as.character(observed)), threshold_preds = as.numeric(as.character(threshold_preds)))
+           
+ tibble(
+   model = model,
+   fbeta = Metrics::fbeta_score(results$observed, results$threshold_preds),
+   acc = Metrics::accuracy(results$observed, results$threshold_preds),
+   precision = Metrics::precision(results$observed, results$threshold_preds),
+   recall = Metrics::recall(results$observed, results$threshold_preds),
+   threshold = threshold
+   )
+}
 ```
 
 ## Aplicação dos modelos
 
+> **Disclaimer*: A fins de prática, serão realizadas a receita e sua preparação em todas as etapas.*
+
 <br />
+
+### LASSO
+
+> Preparando a receita para o lasso
+
+```{r, preparing-lasso-recipe}
+lasso_recipe <- recipe(J1 ~ ., data = train)
+
+lasso_prep <- prep(lasso_recipe)
+
+# mudar para bake com new_data = NULL
+#lasso_juiced <- juice(lasso_prep)
+
+lasso_juiced <- bake(lasso_prep, new_data = NULL)
+
+lasso_baked <- bake(lasso_prep, new_data = test)
+```
+
+
+> Definição do Modelo
+
+```{r, defining_lasso}
+lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% 
+  set_engine("glmnet") %>% 
+  set_mode("classification")
+```
+
+>
+> Visualizando a especificação 
+>
+
+```{r, checking_lasso_model}
+lasso
+
+```
+> Realizando o tunning 
+
+```{r, lasso_tuning, results='hide'}
+tune_lasso <- tune_grid(
+  lasso,
+  lasso_recipe,
+  resamples = cv_folds,
+  grid = 50,
+  metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas),
+  control = control_grid(verbose = TRUE, save_pred = TRUE)
+  )
+```
+
+> Visualizando as métricas do tune_grid em relação a regularização
+
+```{r}
+autoplot(tune_lasso)
+```
+
+> Selecionando a quantidade de regularização pelos valores obtidos da curva roc e f1
+
+```{r}
+best_lasso <- tune_lasso %>% 
+  select_best("roc_auc", "f_meas") 
+```
+
+> Ajustando o modelo final
+
+```{r}
+
+fitted_lasso <- finalize_model(lasso, parameters = best_lasso) %>% 
+  fit(J1 ~ ., data=lasso_juiced)
+```
+
+> Obtendo os resultados e salvando-os para cada valor de corte 
+
+```{r}
+lasso_results <- fitted_lasso %>% 
+  predict(new_data = lasso_baked, type = "prob") %>%
+  mutate(observed = lasso_baked$J1, model = "lasso") 
+
+results <- results %>% 
+  bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = lasso_results, model = "lasso")) %>% 
+  arrange(desc(fbeta))
+```
 
 ### Regressão logística
 
-```{r}
+
+### Preparando a receita para a aplicação do modelo logístico
+
+```{r, lr-recipe}
 
 lr_recipe <- recipe(J1 ~ ., train) %>% # define a receita, com a variavel resposta e os dados de treinamento
   step_normalize(all_numeric())
@@ -86,6 +192,10 @@ lr_juiced <- juice(lr_prep) # obtem os dados de treinamento processados
 
 baked_test <- bake(lr_prep, new_data = test) # obtem os dados de teste processados
 
+```
+
+### 
+```{r, evaluating-lr}
 lr_fit <- logistic_reg() %>% 
   set_engine("glm") %>% 
   fit(J1 ~ ., lr_juiced) %>% 
@@ -96,70 +206,25 @@ lr_results <- lr_fit %>%
   predict(new_data = baked_test, type = "prob") %>% 
   mutate(observed = test$J1, modelo = "logistic regression") 
 
-
-cortes <- seq(0.01, 0.99, 0.01)
-
-get_predictions_from_threshold <- function(threshold, df_gpft) {
-  results <- df_gpft %>% 
-    mutate(threshold_preds = ifelse(df_gpft$.pred_1 >= threshold, 1, 0)) %>% 
-    mutate(observed = as.numeric(as.character(observed)), threshold_preds = as.numeric(as.character(threshold_preds)))
-           
-   tibble(fbeta = Metrics::fbeta_score(results$observed, results$threshold_preds),
-         acc = Metrics::accuracy(results$observed, results$threshold_preds),
-         precision = Metrics::precision(results$observed, results$threshold_preds),
-         recall = Metrics::recall(results$observed, results$threshold_preds),
-         threshold = threshold
-         )
-}
-
-final_results <- tibble(fbeta = NA, acc = NA, fscore = NA, precision = NA, recall = NA)
-
-final_results <- bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = lr_results))
-
-best_lr <- final_results %>% 
-  arrange(desc(fbeta)) %>% 
-  slice(1)
-
-best_lr
+results <- results %>% 
+  bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = lr_results, model = 'lr'))
 ```
+
 <br />
-
-```{r}
-results
-```
-
-
-> O corte que apresentou o melhor valor para fbeta foi o 0.4. Iremos armazená-lo em nossa tabela de resultados.
-
-```{r}
-
-results$threshold[results$model == 'regressao logistica'] = best_lr$threshold[1]
-results$accuracy[results$model == 'regressao logistica'] = best_lr$acc[1]
-results$fbeta[results$model == 'regressao logistica'] = best_lr$fbeta[1]
-results$recall[results$model == 'regressao logistica'] = best_lr$recall[1]
-results$precision[results$model == 'regressao logistica'] = best_lr$precision[1]
-
-results %>% 
-  slice(1)
-```
 
 ### Árvore de Decisão
 
 <br /> 
 
 > Para a Árvore de Decisão, iremos realizar o *tuning* dos parâmetros para avaliarmos o seu poder preditivo e aplicaremos validação cruzada para estimarmos o erro de classificação.
->
-> <br />
->
-> **Disclaimer*: A fins de prática, será realizada novamente a receita e sua preparação.*
 
-```{r}
+```{r, tree-recipe}
 tree_recipe <- recipe(J1 ~ ., train) %>% 
   step_normalize(all_numeric())
 
 tree_prep <- prep(tree_recipe)
 
-tree_juiced <- juice(tree_prep)
+tree_juiced <- bake(tree_prep, new_data = NULL)
 
 tree_baked <- bake(tree_prep, new_data = test)
 
@@ -171,7 +236,7 @@ tree_baked <- bake(tree_prep, new_data = test)
 
 > Adicionando paralelismo
 
-```{r}
+```{r, adding-do-parallel}
 doParallel::registerDoParallel()
 ```
 
@@ -179,7 +244,7 @@ doParallel::registerDoParallel()
 
 > Especificando a árvore de decisão tunada
 
-```{r}
+```{r, defining-decision-tree}
 
 tree <- decision_tree(
   tree_depth = tune(), 
@@ -187,12 +252,12 @@ tree <- decision_tree(
   set_engine("rpart") %>% 
   set_mode("classification") 
 
-
 tree
 ```
+
 > Tunando a árvore
 
-```{r}
+```{r, tunning-tree}
 tune_tree <- tune_grid(
   tree,
   tree_recipe,
@@ -206,47 +271,41 @@ tune_tree
 
 > Analisando o gráfico contendo as métricas e os valores obtidos para cada um dos valores assumidos para os hiperparâmetros tunados:
 
-```{r}
-autoplot(tree_fit)
+```{r, autoplot-tree}
+autoplot(tune_tree)
 ```
 
 > Coletando as métricas
 
-```{r}
+```{r, collecting-tree-metrics}
 
-tree_fit %>% 
+tune_tree %>% 
   collect_metrics() %>% 
   head(5)
 ```
 
 
-> Selecionando os melhores valores para os hiperparâmetros pela curva roc e salvando-os para registrarmos em nossos resultados.
+> Selecionando os melhores valores para os hiperparâmetros pela curva roc e salvando-os para ajustarmos o modelo final com os valores encontrados.
 
+> Visualizando os valores de hiperparâmetro que nos dá os melhores valores de roc_auc e specificity
 
-```{r}
-best_tree <- tree_fit %>% 
-  select_best("roc_auc") 
-
-
-tree_fit %>% 
-  collect_metrics() %>% 
-  
-tree_fit %>% 
-  collect_metrics() %>% 
-  which(cost_complexity == best_tree$cost_complexity & tree_depth == best_tree$tree_depth[1])
+```{r, visualizing-best-tree}
+best_tree <-tune_tree %>% 
+  select_best("roc_auc", "f_meas")
 ```
 
-```{r}
-fit_tree <- finalize_model(tree, parameters = best_tree)
+> Finalizando o modelo e obtendo as predictions para cada valor de corte. Adicionaremos também a tibble resultante a tibble dos nossos resultados.
 
 
-tree_fit %>% 
-  select_best()
-  
+```{r, finalizng-tree}
+fit_tree <- finalize_model(tree, parameters = best_tree) %>% 
+  fit(J1 ~ ., data=train)
+ 
+fitted_tree <- fit_tree %>% 
+  predict(new_data = test, type = "prob") %>% 
+  mutate(observed = test$J1)
+
+results <- results %>% 
+  bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = fitted_tree, model = 'tree'))
 ```
-
-
-
-
-
 
