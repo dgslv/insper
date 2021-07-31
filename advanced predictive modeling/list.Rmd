@@ -307,4 +307,17 @@ results <- results %>%
 
 ### Floresta Aleatória
 
-> 
+> Assim como na Árvore de Decisão, também realizaremos o tunning dos hiperparâmetros e validação cruzada para estimarmos o erro de classificação.
+
+> Começaremos pela receita
+
+```{r}
+rf_recipe <- recipe(J1 ~ ., data = train)
+
+rf_prep <- prep(rf_recipe)
+
+rf_baked_train <- bake(rf_prep, new_data = NULL)
+
+rf_baked_test <- bake()
+```
+
