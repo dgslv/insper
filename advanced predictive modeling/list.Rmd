@@ -24,7 +24,7 @@ output:
 \n
 
 ```{r, echo=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE, warning = FALSE)
 ```
 ## Carregando bibliotecas
 
@@ -41,7 +41,7 @@ library(skimr)
 
 
 ## Lendo o conjunto de dados
-```{r, reading-data}
+```{r, reading-data, results="hide"}
 
 df <- read_csv('data-treated.csv')
 
@@ -122,9 +122,7 @@ lasso <- logistic_reg(penalty = tune(), mixture = 1) %>%
   set_mode("classification")
 ```
 
->
 > Visualizando a especificação 
->
 
 ```{r, checking_lasso_model}
 lasso
@@ -132,14 +130,13 @@ lasso
 ```
 > Realizando o tunning 
 
-```{r, lasso_tuning, results='hide'}
+```{r, lasso_tuning}
 tune_lasso <- tune_grid(
   lasso,
   lasso_recipe,
   resamples = cv_folds,
   grid = 50,
-  metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas),
-  control = control_grid(verbose = TRUE, save_pred = TRUE)
+  metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas)
   )
 ```
 
@@ -178,8 +175,7 @@ results <- results %>%
 
 ### Regressão logística
 
-
-### Preparando a receita para a aplicação do modelo logístico
+> Preparando a receita para a aplicação do modelo logístico
 
 ```{r, lr-recipe}
 
@@ -194,7 +190,7 @@ baked_test <- bake(lr_prep, new_data = test) # obtem os dados de teste processad
 
 ```
 
-### 
+
 ```{r, evaluating-lr}
 lr_fit <- logistic_reg() %>% 
   set_engine("glm") %>% 
@@ -309,3 +305,6 @@ results <- results %>%
   bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = fitted_tree, model = 'tree'))
 ```
 
+### Floresta Aleatória
+
+> 

@@ -191,7 +191,6 @@ pre code {
 <div id="lendo-o-conjunto-de-dados" class="section level2">
 <h2>Lendo o conjunto de dados</h2>
 <pre class="r"><code>df &lt;- read_csv(&#39;data-treated.csv&#39;)</code></pre>
-<pre><code>## Warning: Missing column names filled in: &#39;X1&#39; [1]</code></pre>
 <pre><code>## 
 ## ── Column specification ────────────────────────────────────────────────────────
 ## cols(
@@ -286,79 +285,18 @@ lasso_baked &lt;- bake(lasso_prep, new_data = test)</code></pre>
   lasso_recipe,
   resamples = cv_folds,
   grid = 50,
-  metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas),
-  control = control_grid(verbose = TRUE, save_pred = TRUE)
+  metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas)
   )</code></pre>
-<pre><code>## i Fold01: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold01: preprocessor 1/1</code></pre>
-<pre><code>## i Fold01: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold01: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold01: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold01: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold01: internal</code></pre>
-<pre><code>## i Fold02: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold02: preprocessor 1/1</code></pre>
-<pre><code>## i Fold02: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold02: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold02: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold02: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold02: internal</code></pre>
-<pre><code>## i Fold03: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold03: preprocessor 1/1</code></pre>
-<pre><code>## i Fold03: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold03: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold03: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold03: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold03: internal</code></pre>
-<pre><code>## i Fold04: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold04: preprocessor 1/1</code></pre>
-<pre><code>## i Fold04: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold04: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold04: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold04: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold04: internal</code></pre>
-<pre><code>## i Fold05: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold05: preprocessor 1/1</code></pre>
-<pre><code>## i Fold05: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold05: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold05: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold05: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold05: internal</code></pre>
-<pre><code>## i Fold06: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold06: preprocessor 1/1</code></pre>
-<pre><code>## i Fold06: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold06: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold06: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold06: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold06: internal</code></pre>
-<pre><code>## i Fold07: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold07: preprocessor 1/1</code></pre>
-<pre><code>## i Fold07: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold07: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold07: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold07: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold07: internal</code></pre>
-<pre><code>## i Fold08: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold08: preprocessor 1/1</code></pre>
-<pre><code>## i Fold08: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold08: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold08: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold08: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold08: internal</code></pre>
-<pre><code>## i Fold09: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold09: preprocessor 1/1</code></pre>
-<pre><code>## i Fold09: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold09: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold09: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold09: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold09: internal</code></pre>
-<pre><code>## i Fold10: preprocessor 1/1</code></pre>
-<pre><code>## ✓ Fold10: preprocessor 1/1</code></pre>
-<pre><code>## i Fold10: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## ✓ Fold10: preprocessor 1/1, model 1/1</code></pre>
-<pre><code>## i Fold10: preprocessor 1/1, model 1/1 (predictions)</code></pre>
 <pre><code>## ! Fold10: internal: While computing binary `precision()`, no predicted events were...</code></pre>
-<pre><code>## ✓ Fold10: internal</code></pre>
 <blockquote>
 <p>Visualizando as métricas do tune_grid em relação a regularização</p>
 </blockquote>
