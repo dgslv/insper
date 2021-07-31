@@ -1,4 +1,3 @@
-CURRENT_BRANCH = git branch --show-current;
 {
   git checkout gh-pages;
   git merge master;
