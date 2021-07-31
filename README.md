@@ -12,7 +12,7 @@ Até o momento, temos:
 ├── .gitignore                                      # regras de arquivos a serem ignorados ou considerados
 ├── README.md                                       # descrição do projeto
 ├── update-repo.sh                                  # shell script para agilizar o envio de atualizações ao repo
-├── update-pages.sh                                  # shell script para agilizar o envio de atualizações a página
+├── update-pages.sh                                 # shell script para agilizar o envio de atualizações a página
 ```
 
 ## Acesso ao conteúdo
