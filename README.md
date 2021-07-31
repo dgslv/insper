@@ -10,8 +10,8 @@ Até o momento, temos:
     ├── list.Rmd                                    # lista de exercícios - wip¹ 
     ├── list.html                                   # lista de exercícios em html - wip¹
 ├── sh                                              # pasta contendo shell scripts
-    ├── update-repo.sh                                  # shell script para agilizar o envio de atualizações ao repo
-    ├── update-pages.sh                                 # shell script para agilizar o envio de atualizações a página
+    ├── update-repo.sh                              # shell script para agilizar o envio de atualizações ao repo
+    ├── update-pages.sh                             # shell script para agilizar o envio de atualizações a página
 ├── update.sh                                       # shell script para agilizar o envio de atualizações a página
 ├── README.md                                       # descrição do projeto
 ├── .gitignore                                      # regras de arquivos a serem ignorados ou considerados
