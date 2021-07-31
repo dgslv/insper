@@ -13,6 +13,7 @@ Até o momento, temos:
 ├── README.md                                       # descrição do projeto
 ├── update-repo.sh                                  # shell script para agilizar o envio de atualizações ao repo
 ├── update-pages.sh                                 # shell script para agilizar o envio de atualizações a página
+├── update.sh                                 # shell script para agilizar o envio de atualizações a página
 ```
 
 ## Acesso ao conteúdo
