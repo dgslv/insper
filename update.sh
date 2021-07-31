@@ -1,2 +1,2 @@
-./update-repo.sh $1 $2;
-./update-pages.sh
+./sh/update-repo.sh $1 $2;
+./sh/update-pages.sh
