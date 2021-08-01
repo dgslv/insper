@@ -27,7 +27,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE, warning = FALSE)
 ```
 
-```{r, cache=TRUE, echo=FALSE}
+```{r, cache=TRUE, echo=FALSE, results = "hide", output = FALSE}
 library(tidymodels)
 library(tidyverse)
 library(gapminder)
@@ -36,6 +36,7 @@ library(doParallel)
 library(yardstick)
 library(readr)
 library(skimr)
+options(tidymodels.dark = TRUE)
 ```
 
 
@@ -285,7 +286,7 @@ tune_tree %>%
 > Visualizando os valores de hiperparâmetro que nos dá os melhores valores de roc_auc e specificity
 
 ```{r, visualizing-best-tree}
-best_tree <-tune_tree %>% 
+best_tree <- tune_tree %>% 
   select_best("roc_auc", "f_meas")
 ```
 
@@ -308,7 +309,7 @@ results <- results %>%
 
 > Assim como na Árvore de Decisão, também realizaremos o tunning dos hiperparâmetros e validação cruzada para estimarmos o erro de classificação.
 
-> Começaremos pela receita
+> Começaremos pela receita:
 
 ```{r}
 rf_recipe <- recipe(J1 ~ ., data = train)
@@ -318,5 +319,32 @@ rf_prep <- prep(rf_recipe)
 rf_baked_train <- bake(rf_prep, new_data = NULL)
 
 rf_baked_test <- bake(rf_prep, new_data = test)
+```
+
+> Seguiremos agora para a especificação do modelo:
+
+```{r}
+rf <- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+rf
+```
+
+
+```{r}
+doParallel::registerDoParallel(cores = 4)
+
+tune_rf <- tune_grid(
+  rf,
+  rf_recipe,
+  resamples = cv_folds,
+  grid = 1,
+  control = control_grid(verbose = TRUE)
+)
 ```
 

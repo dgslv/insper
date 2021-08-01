@@ -426,7 +426,7 @@ tune_tree</code></pre>
 <blockquote>
 <p>Visualizando os valores de hiperparâmetro que nos dá os melhores valores de roc_auc e specificity</p>
 </blockquote>
-<pre class="r"><code>best_tree &lt;-tune_tree %&gt;% 
+<pre class="r"><code>best_tree &lt;- tune_tree %&gt;% 
   select_best(&quot;roc_auc&quot;, &quot;f_meas&quot;)</code></pre>
 <blockquote>
 <p>Finalizando o modelo e obtendo as predictions para cada valor de corte. Adicionaremos também a tibble resultante a tibble dos nossos resultados.</p>
@@ -447,7 +447,7 @@ results &lt;- results %&gt;%
 <p>Assim como na Árvore de Decisão, também realizaremos o tunning dos hiperparâmetros e validação cruzada para estimarmos o erro de classificação.</p>
 </blockquote>
 <blockquote>
-<p>Começaremos pela receita</p>
+<p>Começaremos pela receita:</p>
 </blockquote>
 <pre class="r"><code>rf_recipe &lt;- recipe(J1 ~ ., data = train)
 
@@ -456,6 +456,16 @@ rf_prep &lt;- prep(rf_recipe)
 rf_baked_train &lt;- bake(rf_prep, new_data = NULL)
 
 rf_baked_test &lt;- bake(rf_prep, new_data = test)</code></pre>
+<blockquote>
+<p>Seguiremos agora para a especificação do modelo:</p>
+</blockquote>
+<pre class="r"><code>rf &lt;- rand_forest(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %&gt;% 
+  set_engine(&quot;ranger&quot;) %&gt;% 
+  set_mode(&quot;classification&quot;)</code></pre>
 </div>
 </div>
 
