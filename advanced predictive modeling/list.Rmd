@@ -7,7 +7,10 @@ output:
 ---
 <br />
 
-> 1 - Apresente a análise da Atividade Integradora do trimestre passado usando o tidymodels. Não é necessário reproduzir todos os passos e ajustar todos os modelos, considere ajustar pelo menos 2 modelos preditivos fazendo a escolha de hiperparâmetros para avaliar o poder preditivo e decidir qual é o melhor modelo de acordo com uma métrica.
+
+# Exercício 1
+
+> Apresente a análise da Atividade Integradora do trimestre passado usando o tidymodels. Não é necessário reproduzir todos os passos e ajustar todos os modelos, considere ajustar pelo menos 2 modelos preditivos fazendo a escolha de hiperparâmetros para avaliar o poder preditivo e decidir qual é o melhor modelo de acordo com uma métrica.
 > 
 > <br > 
 >
@@ -27,7 +30,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE, warning = FALSE)
 ```
 
-```{r, cache=TRUE, echo=FALSE, results = "hide", output = FALSE}
+```{r, cache=TRUE, echo=FALSE, results = "hide"}
 library(tidymodels)
 library(tidyverse)
 library(gapminder)
@@ -105,9 +108,6 @@ lasso_recipe <- recipe(J1 ~ ., data = train)
 
 lasso_prep <- prep(lasso_recipe)
 
-# mudar para bake com new_data = NULL
-#lasso_juiced <- juice(lasso_prep)
-
 lasso_juiced <- bake(lasso_prep, new_data = NULL)
 
 lasso_baked <- bake(lasso_prep, new_data = test)
@@ -126,7 +126,6 @@ lasso <- logistic_reg(penalty = tune(), mixture = 1) %>%
 
 ```{r, checking_lasso_model}
 lasso
-
 ```
 > Realizando o tunning 
 
@@ -233,7 +232,7 @@ tree_baked <- bake(tree_prep, new_data = test)
 > Adicionando paralelismo
 
 ```{r, adding-do-parallel}
-doParallel::registerDoParallel()
+doParallel::registerDoParallel(cores = 4)
 ```
 
 <br />
@@ -254,6 +253,7 @@ tree
 > Tunando a árvore
 
 ```{r, tunning-tree}
+
 tune_tree <- tune_grid(
   tree,
   tree_recipe,
@@ -297,12 +297,12 @@ best_tree <- tune_tree %>%
 fit_tree <- finalize_model(tree, parameters = best_tree) %>% 
   fit(J1 ~ ., data=train)
  
-fitted_tree <- fit_tree %>% 
+tree_preds <- fit_tree %>% 
   predict(new_data = test, type = "prob") %>% 
   mutate(observed = test$J1)
 
 results <- results %>% 
-  bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = fitted_tree, model = 'tree'))
+  bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = tree_preds, model = 'tree'))
 ```
 
 ### Floresta Aleatória
@@ -335,16 +335,363 @@ rf <- rand_forest(
 rf
 ```
 
+> Tunando o modelo
 
-```{r}
-doParallel::registerDoParallel(cores = 4)
+```{r message=TRUE}
 
 tune_rf <- tune_grid(
   rf,
   rf_recipe,
   resamples = cv_folds,
-  grid = 1,
+  grid = 2,
   control = control_grid(verbose = TRUE)
 )
+
+tune_rf
+```
+
+> Selecionando o melhor modelo pela área abaixo da curva e f1
+
+```{r}
+best_rf <- tune_rf %>% 
+  select_best("roc_auc", "f_meas")
+```
+
+
+> Finalizando o modelo com os hiperparametros obtidos
+
+```{r}
+fit_rf <- finalize_model(rf, parameters = best_rf) %>% 
+  fit(J1 ~ ., data = train)
+
+```
+
+> Calculando as métricas de interesse para cada valor de corte
+
+```{r}
+
+rf_preds <-  fit_rf %>%
+  predict(new_data = test, type="prob")
+
+results %>% 
+  bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = rf_preds, model = 'rf'))
+```
+
+
+```{r}
+stopImplicitCluster()
+```
+
+
+```{r}
+results
+```
+
+
+# Exercício 2
+
+> Considere um modelo linear com todas as variáveis preditoras e um modelo linear com 5 componentes principais para previsão do valor mediano dos imóveis do banco de dados Boston (acesse com
+MASS::Boston ). Para avaliar o desempenho dos modelos, faça uma divisão dos dados de 80% para treinamento e o restante para teste. Indique qual métrica está sendo utilizada para a comparação dos modelos e defina o melhor modelo preditivo. Dicas:
+Note que queremos predizer o valor mediano dos imóveis, não médio. O que isso muda em nossa avaliação?
+Para comparar o modelo sem PCA e com PCA, você pode usar tune() no número de componentes e, na tune_grid() adicionar os valores 0 e 4. O valor zero fará com que o PCA não seja ajustado, enquanto que o valor 4 considerará 4 componentes principais.
+
+
+```{r, echo=FALSE}
+library(MASS)
+```
+
+
+> Para a previsão do valor mediano dos imovéis, iremos minimizar o MAE (*Mean Absolute Error*), uma vez que isto indicaria uma boa previsibilidade de valores medianos. Em relação aos modelos que serão utilizados, segue a lista abaixo:
+>
+> * Regressão Linear
+> * LASSO
+> * Ridge
+> * Árvore de Decisão
+> * Floresta Aleatória
+> * XGBoost
+
+> Carregaremos o dataset e veremos a distribuição dos valores obtidos em cada uma das colunas
+
+```{r}
+df <- MASS::Boston
+summary(df)
+
+```
+
+> Separando os dados em treino e teste, e então criando os *cross-validation folds*
+
+```{r}
+splits <- initial_split(df, prop = .8, strata = "medv")
+
+train <- training(splits)
+test <- testing(splits)
+
+cv_folds <- vfold_cv(train, v = 10)
+```
+
+> Definindo tibble para armazenar os resultados obtidos por cada modelo em relação a métrica de interesse:
+
+```{r}
+results <- tibble(model = NA, mae = NA_integer_)
+```
+
+## Regressão Linear
+
+> Preparando a receita:
+
+```{r}
+lm_recipe <- recipe(medv ~ ., data = train) %>% 
+  step_normalize(all_numeric(), -all_outcomes())
+
+lm_prep <- prep(lm_recipe)
+
+train_lm <- bake(lm_prep, new_data = NULL)
+test_lm <- bake(lm_prep, new_data = test)
+  
+```
+
+
+> Definindo função para cálculo do *MAE* de cada fold da volidação cruzada
+
+```{r}
+get_maes <- function(split, model) {
+  train_split <- training(split)
+  test_split <- testing(split)
+  
+  fit <- model %>% 
+    fit(medv ~ ., data = train_split)
+  
+  tibble(
+    mae = Metrics::mse(test_split$medv, predict(fit, test_split)$.pred)
+  )
+}
+
+```
+
+
+> Estimando o erro de *MAE* do modelo linear com validação cruzada:
+
+```{r}
+lm_fit <- linear_reg() %>% 
+  set_engine("lm")
+
+cv_folds %>% 
+  mutate(maes = map(lm_folds$splits, get_mae_from_lm, model = lm_fit)) %>% 
+  unnest(maes) %>% 
+  summarise_if(is.numeric, mean)
+```
+> Ajustando o modelo linear
+
+```{r}
+
+ajusted_lm <- lm_fit %>% 
+  fit(medv ~ ., data = train_lm)
+
+```
+
+> Obtendo as previsões e o *MAE* do modelo linear ajustado e salvando-as no tibble de resultados
+
+```{r}
+
+results <- results %>% 
+  bind_rows(tibble(model = "lm", mae = Metrics::mae(test_lm$medv, predict(ajusted_lm, test_lm)$.pred)))
+
+```
+## LASSO
+
+> Preparando a receita para o modelo LASSO:
+
+```{r}
+
+lasso_recipe <- recipe(medv ~ ., data = train) %>% 
+  step_normalize(all_numeric(), -all_outcomes()) 
+
+lasso_prep <- prep(lasso_recipe)
+
+lasso_train <- bake(lasso_prep, new_data = NULL)
+
+lasso_test <- bake(lasso_prep, new_data = test)
+
+```
+
+> Defininção do modelo:
+
+```{r}
+
+lasso_fit <- linear_reg(
+  penalty = tune(),
+  mixture = 1
+) %>% 
+  set_engine("glmnet") %>% 
+  set_mode("regression") 
+
+```
+
+> Tunando a regularização utilizando validação cruzada:
+
+```{r}
+
+lasso_tuned <- tune_grid(
+  lasso_fit,
+  lasso_recipe,
+  resamples = cv_folds,
+  grid = 10,
+  metrics = metric_set(yardstick::mae)
+)
+
+```
+
+> Visualizando o gráfico com os resultados:
+
+```{r}
+autoplot(lasso_tuned)
+```
+
+> Selecionando a regularização pelo melhor valor obtido de *MAE*:
+
+```{r}
+best_lasso <- lasso_tuned %>% 
+  select_best("mae")
+
+best_lasso
+```
+
+> Finalizando o modelo lasso:
+
+```{r}
+final_lasso <- finalize_model(lasso_fit, parameters = best_lasso) %>% 
+  fit(medv ~ ., data = train)
+```
+
+
+> Estimando o *MAE* do modelo lasso ajustado e salvado-o em nosso *tibble* de resultados:
+
+
+```{r}
+results <- results %>% 
+  bind_rows(tibble(model = "lasso", mae = Metrics::mae(test$medv, predict(final_lasso, lasso_test)$.pred)))
+
+```
+
+## Ridge
+
+> Preparando a receita:
+
+```{r}
+
+ridge_recipe <- recipe(medv ~ ., data = train) %>% 
+    step_normalize(all_numeric(), -all_outcomes())
+
+ridge_prep <- prep(ridge_recipe)
+
+ridge_train <- bake(ridge_prep, new_data = NULL)
+
+ridge_test <- bake(ridge_prep, new_data = test)
+
+```
+
+> Definindo o modelo:
+
+```{r}
+
+ridge_fit <- linear_reg(
+  penalty = tune(),
+  mixture = 0
+  ) %>% 
+  set_engine("glmnet") %>% 
+  set_mode("regression")
+
+```
+
+> Realizando validação cruzada:
+
+```{r}
+
+ridge_tuned <- tune_grid(
+  ridge_fit,
+  ridge_recipe,
+  resamples = cv_folds,
+  metrics = metric_set(yardstick::mae)
+)
+
+```
+
+> Visualizando o gráfico do *MAE* em relação a regularização no modelo ridge:
+
+```{r}
+autoplot(ridge_tuned)
+```
+
+> Como podemos ver, os valores diferentes de regularização não tiveram *MAEs* diferentes.
+> Finalizaremos o modelo, registrando o *MAE* do modelo ajustado abaixo:
+
+```{r}
+best_ridge <- ridge_tuned %>% 
+  select_best()
+  
+final_ridge <- finalize_model(ridge_fit, parameters = best_ridge) %>% 
+  fit(medv ~ ., data = train)
+
+results <- results %>% 
+  bind_rows(
+    tibble(
+      model = "ridge",
+      mae = Metrics::mae(test$medv, predict(final_ridge, test)$.pred)
+    )
+  )
+```
+
+```{r}
+results
+```
+
+# Árvore de Decisão
+
+> Preparando a receita:
+
+```{r}
+
+tree_recipe <- recipe(medv ~ ., data = train) %>% 
+  step_normalize(all_numeric(), -all_outcomes())
+
+tree_prep <- prep(tree_recipe)
+
+tree_train <- bake(tree_prep, new_data = NULL)
+
+tree_test <- bake(tree_prep, new_data = test)
+
+```
+
+> Definindo o modelo:
+
+```{r}
+
+tree_fit <- decision_tree(
+  tree_depth = tune(),
+  min_n = tune(),
+  cost_complexity = tune()
+) %>% 
+  set_engine("rpart") %>% 
+  set_mode("regression")
+
+```
+
+> Tunando os hiperparâmetros do modelo utilizando validação cruzada:
+
+```{r}
+
+tuned_tree <- tune_grid(
+  tree_fit,
+  tree_recipe,
+  resamples = cv_folds,
+  metrics = metric_set(yardstick::mae)
+) 
+
+```
+
+> 
+
+```{r}
+
 ```
 
