@@ -39,11 +39,13 @@ library(doParallel)
 library(yardstick)
 library(readr)
 library(skimr)
+library(factoextra)
 options(tidymodels.dark = TRUE)
 ```
 
 
 ## Lendo o conjunto de dados
+
 ```{r, reading-data, results="hide"}
 
 df <- read_csv('data-treated.csv')
@@ -61,7 +63,7 @@ test <- testing(split)
 
 ```{r, creating-cv-folds}
 
-cv_folds <- vfold_cv(train, v = 10)
+cv_folds <- vfold_cv(train, v = 2)
 
 cv_folds
 ```
@@ -95,13 +97,13 @@ get_predictions_from_threshold <- function(threshold, df_gpft, model) {
 
 ## Aplicação dos modelos
 
-> **Disclaimer*: A fins de prática, serão realizadas a receita e sua preparação em todas as etapas.*
+**Disclaimer*: A fins de prática, serão realizadas a receita e sua preparação em todas as etapas.*
 
 <br />
 
 ### LASSO
 
-> Preparando a receita para o lasso
+* Preparando a receita para o lasso
 
 ```{r, preparing-lasso-recipe}
 lasso_recipe <- recipe(J1 ~ ., data = train)
@@ -114,7 +116,7 @@ lasso_baked <- bake(lasso_prep, new_data = test)
 ```
 
 
-> Definição do Modelo
+* Definição do Modelo
 
 ```{r, defining_lasso}
 lasso <- logistic_reg(penalty = tune(), mixture = 1) %>% 
@@ -122,37 +124,38 @@ lasso <- logistic_reg(penalty = tune(), mixture = 1) %>%
   set_mode("classification")
 ```
 
-> Visualizando a especificação 
+* Visualizando a especificação 
 
 ```{r, checking_lasso_model}
 lasso
 ```
-> Realizando o tunning 
+
+* Realizando o tunning 
 
 ```{r, lasso_tuning}
 tune_lasso <- tune_grid(
   lasso,
   lasso_recipe,
   resamples = cv_folds,
-  grid = 50,
+  grid = 1,
   metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas)
   )
 ```
 
-> Visualizando as métricas do tune_grid em relação a regularização
+* Visualizando as métricas do tune_grid em relação a regularização:
 
 ```{r}
 autoplot(tune_lasso)
 ```
 
-> Selecionando a quantidade de regularização pelos valores obtidos da curva roc e f1
+* Selecionando a quantidade de regularização pelos valores obtidos da curva roc e f1:
 
 ```{r}
 best_lasso <- tune_lasso %>% 
   select_best("roc_auc", "f_meas") 
 ```
 
-> Ajustando o modelo final
+* Ajustando o modelo final:
 
 ```{r}
 
@@ -258,11 +261,11 @@ tune_tree <- tune_grid(
   tree,
   tree_recipe,
   resamples = cv_folds,
-  grid = 30,
+  grid = 1,
   metrics = metric_set(roc_auc, yardstick::accuracy, yardstick::specificity, yardstick::sensitivity, yardstick::f_meas)
   )
 
-tune_tree
+tune_tree$.notes
 ```
 
 > Analisando o gráfico contendo as métricas e os valores obtidos para cada um dos valores assumidos para os hiperparâmetros tunados:
@@ -324,9 +327,11 @@ rf_baked_test <- bake(rf_prep, new_data = test)
 > Seguiremos agora para a especificação do modelo:
 
 ```{r}
+dials::trees()
+
 rf <- rand_forest(
   mtry = tune(),
-  trees = tune(),
+  trees = 10,
   min_n = tune()
 ) %>% 
   set_engine("ranger") %>% 
@@ -343,7 +348,7 @@ tune_rf <- tune_grid(
   rf,
   rf_recipe,
   resamples = cv_folds,
-  grid = 2,
+  grid = 1,
   control = control_grid(verbose = TRUE)
 )
 
@@ -371,9 +376,10 @@ fit_rf <- finalize_model(rf, parameters = best_rf) %>%
 ```{r}
 
 rf_preds <-  fit_rf %>%
-  predict(new_data = test, type="prob")
+  predict(new_data = test, type="prob") %>% 
+  mutate(observed = rf_baked_test$J1, model = "rf") 
 
-results %>% 
+results <- results %>% 
   bind_rows(map(cortes, get_predictions_from_threshold, df_gpft = rf_preds, model = 'rf'))
 ```
 
@@ -421,12 +427,15 @@ summary(df)
 > Separando os dados em treino e teste, e então criando os *cross-validation folds*
 
 ```{r}
+
+set.seed(1232)
+
 splits <- initial_split(df, prop = .8, strata = "medv")
 
 train <- training(splits)
 test <- testing(splits)
 
-cv_folds <- vfold_cv(train, v = 10)
+cv_folds <- vfold_cv(train, v = 2)
 ```
 
 > Definindo tibble para armazenar os resultados obtidos por cada modelo em relação a métrica de interesse:
@@ -440,73 +449,52 @@ results <- tibble(model = NA, mae = NA_integer_)
 > Preparando a receita:
 
 ```{r}
+# escolher colunas a serem aplicadas pca
 lm_recipe <- recipe(medv ~ ., data = train) %>% 
-  step_normalize(all_numeric(), -all_outcomes())
+  step_normalize(all_numeric(), -all_outcomes()) %>% 
+  step_pca(c(where(is.numeric), -age, -all_outcomes()), num_comp = 4)
 
 lm_prep <- prep(lm_recipe)
 
 train_lm <- bake(lm_prep, new_data = NULL)
+
 test_lm <- bake(lm_prep, new_data = test)
   
 ```
 
 
-> Definindo função para cálculo do *MAE* de cada fold da volidação cruzada
-
-```{r}
-get_maes <- function(split, model) {
-  train_split <- training(split)
-  test_split <- testing(split)
-  
-  fit <- model %>% 
-    fit(medv ~ ., data = train_split)
-  
-  tibble(
-    mae = Metrics::mse(test_split$medv, predict(fit, test_split)$.pred)
-  )
-}
-
-```
-
-
-> Estimando o erro de *MAE* do modelo linear com validação cruzada:
+* Estimando o erro de *MAE* do modelo linear com validação cruzada:
 
 ```{r}
 lm_fit <- linear_reg() %>% 
   set_engine("lm")
 
-cv_folds %>% 
-  mutate(maes = map(lm_folds$splits, get_mae_from_lm, model = lm_fit)) %>% 
-  unnest(maes) %>% 
-  summarise_if(is.numeric, mean)
-```
-> Ajustando o modelo linear
-
-```{r}
-
-ajusted_lm <- lm_fit %>% 
+lm_fitted <- lm_fit %>% 
   fit(medv ~ ., data = train_lm)
-
+  
 ```
 
-> Obtendo as previsões e o *MAE* do modelo linear ajustado e salvando-as no tibble de resultados
+* Obtendo as previsões e o *MAE* do modelo linear ajustado e salvando-as no tibble de resultados:
 
 ```{r}
 
 results <- results %>% 
-  bind_rows(tibble(model = "lm", mae = Metrics::mae(test_lm$medv, predict(ajusted_lm, test_lm)$.pred)))
-
+  bind_rows(
+    tibble(
+      model = "lm", 
+      mae = Metrics::mae(test_lm$medv, predict(lm_fitted, test_lm)$.pred)
+      )
+    )
 ```
 ## LASSO
 
-> Preparando a receita para o modelo LASSO:
+* Preparando a receita para o modelo LASSO:
 
 ```{r}
 
 lasso_recipe <- recipe(medv ~ ., data = train) %>% 
-  step_normalize(all_numeric(), -all_outcomes()) 
-
-lasso_prep <- prep(lasso_recipe)
+  step_normalize(all_numeric(), -all_outcomes())  %>% 
+  step_pca(c(where(is.numeric), -age, -all_outcomes()), num_comp = tune())
 
 lasso_train <- bake(lasso_prep, new_data = NULL)
 
@@ -514,10 +502,9 @@ lasso_test <- bake(lasso_prep, new_data = test)
 
 ```
 
-> Defininção do modelo:
+Definição do modelo e do workflow:
 
 ```{r}
-
 lasso_fit <- linear_reg(
   penalty = tune(),
   mixture = 1
@@ -525,29 +512,39 @@ lasso_fit <- linear_reg(
   set_engine("glmnet") %>% 
   set_mode("regression") 
 
+lasso_workflow <- workflow() %>% 
+  add_model(lasso_fit) %>% 
+  add_recipe(lasso_recipe)
+
 ```
 
-> Tunando a regularização utilizando validação cruzada:
+Tunando a regularização utilizando validação cruzada:
 
 ```{r}
 
-lasso_tuned <- tune_grid(
-  lasso_fit,
-  lasso_recipe,
-  resamples = cv_folds,
-  grid = 10,
-  metrics = metric_set(yardstick::mae)
+lasso_grid <- dials::grid_regular(
+  penalty(),
+  num_comp(c(0L, 4L)), 
+  levels = 2 
 )
+
+lasso_tuned <- lasso_workflow %>% 
+  tune_grid(
+    cv_folds,
+    grid = lasso_grid,
+    control_grid = control_grid(verbose = TRUE, save_pred = TRUE),
+    metrics = metric_set(yardstick::mae)
+  )
 
 ```
 
-> Visualizando o gráfico com os resultados:
+* Visualizando o gráfico com os resultados:
 
 ```{r}
 autoplot(lasso_tuned)
 ```
 
-> Selecionando a regularização pelo melhor valor obtido de *MAE*:
+* Selecionando a regularização pelo melhor valor obtido de *MAE*:
 
 ```{r}
 best_lasso <- lasso_tuned %>% 
@@ -556,7 +553,7 @@ best_lasso <- lasso_tuned %>%
 best_lasso
 ```
 
-> Finalizando o modelo lasso:
+* Finalizando o modelo lasso:
 
 ```{r}
 final_lasso <- finalize_model(lasso_fit, parameters = best_lasso) %>% 
@@ -564,33 +561,28 @@ final_lasso <- finalize_model(lasso_fit, parameters = best_lasso) %>%
 ```
 
 
-> Estimando o *MAE* do modelo lasso ajustado e salvado-o em nosso *tibble* de resultados:
+* Estimando o *MAE* do modelo lasso ajustado e salvado-o em nosso *tibble* de resultados:
 
 
 ```{r}
 results <- results %>% 
-  bind_rows(tibble(model = "lasso", mae = Metrics::mae(test$medv, predict(final_lasso, lasso_test)$.pred)))
+  bind_rows(tibble(model = "lasso", mae = Metrics::mae(test$medv, predict(final_lasso, test)$.pred)))
 
 ```
 
 ## Ridge
 
-> Preparando a receita:
+Preparando a receita:
 
 ```{r}
 
 ridge_recipe <- recipe(medv ~ ., data = train) %>% 
-    step_normalize(all_numeric(), -all_outcomes())
-
-ridge_prep <- prep(ridge_recipe)
-
-ridge_train <- bake(ridge_prep, new_data = NULL)
-
-ridge_test <- bake(ridge_prep, new_data = test)
+  step_normalize(all_numeric(), -all_outcomes()) %>% 
+  step_pca(c(where(is.numeric), -age, -all_outcomes()), num_comp = tune())
 
 ```
 
-> Definindo o modelo:
+Definindo o modelo e do workflow:
 
 ```{r}
 
@@ -601,29 +593,40 @@ ridge_fit <- linear_reg(
   set_engine("glmnet") %>% 
   set_mode("regression")
 
+
+ridge_workflow <- workflow() %>% 
+  add_model(ridge_fit) %>% 
+  add_recipe(ridge_recipe)
+
 ```
 
-> Realizando validação cruzada:
+Realizando validação cruzada:
 
 ```{r}
 
-ridge_tuned <- tune_grid(
-  ridge_fit,
-  ridge_recipe,
-  resamples = cv_folds,
-  metrics = metric_set(yardstick::mae)
+ridge_grid <- dials::grid_regular(
+  penalty(),
+  num_comp(c(0L, 5L)),
+  levels = 2
 )
 
+
+ridge_tuned <- ridge_workflow %>% 
+  tune_grid(
+    resamples = cv_folds,
+    grid = ridge_grid,
+    metrics = metric_set(yardstick::mae),
+    control = control_grid(verbose = TRUE, save_pred = TRUE)
+  )
 ```
 
-> Visualizando o gráfico do *MAE* em relação a regularização no modelo ridge:
+Visualizando o gráfico do *MAE* em relação a regularização no modelo ridge:
 
 ```{r}
 autoplot(ridge_tuned)
 ```
 
-> Como podemos ver, os valores diferentes de regularização não tiveram *MAEs* diferentes.
-> Finalizaremos o modelo, registrando o *MAE* do modelo ajustado abaixo:
+Selecionando os valores de componentes com melhor *MAE* e salvando o *MAE* do modelo ridge obtido:
 
 ```{r}
 best_ridge <- ridge_tuned %>% 
@@ -641,57 +644,147 @@ results <- results %>%
   )
 ```
 
-```{r}
-results
-```
+## Árvore de Decisão
 
-# Árvore de Decisão
-
-> Preparando a receita:
+Preparando a receita:
 
 ```{r}
 
 tree_recipe <- recipe(medv ~ ., data = train) %>% 
-  step_normalize(all_numeric(), -all_outcomes())
-
-tree_prep <- prep(tree_recipe)
-
-tree_train <- bake(tree_prep, new_data = NULL)
-
-tree_test <- bake(tree_prep, new_data = test)
+  step_normalize(all_numeric(), -all_outcomes()) %>% 
+  step_pca(c(where(is.numeric), -age, -all_outcomes()), num_comp = tune())
 
 ```
 
-> Definindo o modelo:
+Definindo o modelo e o workflow:
 
 ```{r}
 
 tree_fit <- decision_tree(
-  tree_depth = tune(),
+  tree_depth = 2,
   min_n = tune(),
   cost_complexity = tune()
 ) %>% 
   set_engine("rpart") %>% 
   set_mode("regression")
 
+
+
+tree_workflow <- workflow() %>% 
+  add_model(tree_fit) %>% 
+  add_recipe(tree_recipe)
+
 ```
 
-> Tunando os hiperparâmetros do modelo utilizando validação cruzada:
+Tunando os hiperparâmetros do modelo utilizando validação cruzada:
 
 ```{r}
 
-tuned_tree <- tune_grid(
-  tree_fit,
-  tree_recipe,
-  resamples = cv_folds,
-  metrics = metric_set(yardstick::mae)
-) 
+doParallel::registerDoParallel(4)
+
+tuned_tree <- tree_workflow %>% 
+  tune_grid(
+    resamples = cv_folds,
+    metrics = metric_set(yardstick::mae)
+  ) 
+
+
+doParallel::stopImplicitCluster()
 
 ```
 
-> 
+Visualizando os resultados *MAEs* obtidos para cada valor dos hiperparâmetros:
+
+```{r}
+autoplot(tuned_tree)
+```
+
+Selecionando os melhores valores, finalizando o modelo e guardando os resultados em nossa tibble:
+
+```{r}
+best_tree <- tuned_tree %>% 
+  select_best("mae")
+
+
+final_tree <- finalize_model(tree_fit, parameters = best_tree) %>% 
+  fit(medv ~ ., train)
+  
+
+results <- results %>% 
+    bind_rows(
+    tibble(
+      model = "ridge",
+      mae = Metrics::mae(test$medv, predict(final_tree, test)$.pred)
+    )
+  )
+```
+
+## Random Forest
+
+Realizando todo o processo repetido anteriormente para cada um dos modelos abaixo:
+
 
 ```{r}
 
+doParallel::registerDoParallel(4)
+
+rf_recipe <- recipe(medv ~ ., data = train) %>% 
+  step_normalize(all_predictors(), -all_outcomes()) %>% 
+  step_pca(c(where(is.numeric), -age, -all_outcomes()), num_comp = tune())
+
+rf_fit <- rand_forest(mtry = 3, min_n = tune(), trees = 10) %>%
+  set_engine("ranger", num.threads = 4, importance = "impurity") %>%
+  set_mode("regression")
+
+rf_workflow <- workflow() %>% 
+  add_recipe(rf_recipe) %>% 
+  add_model(rf_fit)
+
+rf_tuned <- rf_workflow %>% 
+  tune_grid(
+    resamples = cv_folds,
+    metrics = metric_set(yardstick::mae),
+    control = control_grid(verbose = TRUE, save_pred = TRUE)
+  )
+
+doParallel::stopImplicitCluster()
+
+best_rf <- rf_tuned %>% 
+  select_best("mae")
+
+rf_final <- rf_workflow %>% 
+  finalize_workflow(best_rf) %>% 
+  last_fit(splits)
+
+results <- results %>% 
+  bind_rows(
+    tibble(
+      model = 'rf',
+      mae = Metrics::mae(rf_final$.predictions[[1]]$medv, rf_final$.predictions[[1]]$.pred)
+    )
+  )
+
+results %>% 
+  arrange(mae, ascending = FALSE)
+
+
 ```
+
+O melhor modelo ajustado foi o Random Forest. Iremos visualizar os valores dos hiperparâmetros do modelo ajustado:
+
+```{r}
+best_rf
+```
+
+Como podemos ver, o número de componentes após a aplicação do PCA e realizando tunning nos valores dos hiperparâmetros, o melhor *MAE* obtido foi de um modelo que utiliza 3 componentes e *min_n* 4. Iremos visualizar a importância de cada um dos componentes utilizados:
+
+```{r}
+rf_final %>% 
+  purrr::pluck(".workflow", 1) %>% # pega o modelo ajustado
+  pull_workflow_fit() %>% # extrai o objeto do modelo
+  vip::vip(num_features = 20) +
+  theme_minimal(12)
+
+```
+
 
