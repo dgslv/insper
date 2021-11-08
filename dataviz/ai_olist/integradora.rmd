@@ -1,0 +1,328 @@
+---
+title: "Atividade Integradora - Diego Silva"
+output: 
+    html_document:
+    toc: TRUE
+toc_float: TRUE
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+
+# :: Libraries
+
+```{r, message=F, warning=F}
+if(!require("tidyverse")){install.packages("tidyverse")} 
+if(!require("lubridate")){install.packages("lubridate")} 
+if(!require("janitor")){install.packages("janitor")}
+if(!require("forcats")){install.packages("forcats")}
+if(!require("geobr")){install.packages("geobr")}
+if(!require("sf")){install.packages("sf")}
+if(!require("maptools")){install.packages("maptools")}
+if(!require("viridis")){install.packages("viridis")}
+if(!require("leaflet")){install.packages("leaflet")}
+if(!require("caret")){install.packages("caret")}
+if(!require("hrbrthemes")){install.packages("hrbrthemes")}
+if(!require("data.table")){install.packages("data.table")}
+if(!require("wordcloud")){install.packages("wordcloud")}
+if(!require("RColorBrewer")){install.packages("RColorBrewer")}
+if(!require("wordcloud2")){install.packages("wordcloud2")}
+if(!require("tm")){install.packages("tm")}
+```
+
+
+# :: Read
+
+```{r, message=FALSE}
+#unzipped
+df_sellers <- read_csv('data/olist_sellers_dataset.csv')
+
+#zipped
+df_customers <- readr::read_csv('data/olist_customers_dataset.csv')
+df_geolocation = read_csv('data/olist_geolocation_dataset.csv')
+df_order_items <- read_csv('data/olist_order_items_dataset.csv')
+df_order_payments = read_csv('data/olist_order_payments_dataset.csv')
+df_order_reviews = read_csv('data/olist_order_reviews_dataset.csv')
+df_orders <- read_csv('data/olist_orders_dataset.csv')
+df_products <- read_csv('data/olist_products_dataset.csv')
+```
+
+
+# :: Join
+```{r}
+df_olist <- df_orders %>% 
+    left_join(df_order_items, by = "order_id") %>% 
+    full_join(df_order_payments, by = "order_id") %>% 
+    full_join(df_order_reviews, by = "order_id") %>% 
+    full_join(df_products, by = "product_id") %>% 
+    full_join(df_customers, by = "customer_id") %>% 
+    full_join(df_sellers, by = "seller_id") 
+```
+
+```{r}
+```
+
+
+# :: View
+
+```{r}
+df_olist %>% glimpse
+```
+
+```{r contagem-}
+df_olist %>% 
+  dplyr::group_by(order_id) %>% 
+  count() %>%
+  dplyr::arrange(desc(n)) %>% 
+  ungroup() %>% 
+  dplyr::slice(c(1:50)) %>%
+  mutate(order_id=factor(order_id, levels=order_id)) %>% 
+  ggplot(aes(x = order_id, y = n)) +
+  geom_col(fill = "#C43150") +
+  geom_text(aes(label = n), vjust = -0.5, size = 2) +
+  labs(
+    y = "Quantidade de itens",
+    title = 'As 50 compras em que houveram mais itens'
+  ) +
+  theme(
+    axis.title.x=element_blank(),
+    axis.text.x=element_blank(),
+    axis.ticks.x=element_blank()
+  )
+  
+```
+```{r}
+dist_ocorr_qtd_itens <- df_olist %>% 
+  dplyr::group_by(order_id) %>% 
+  count() %>%
+  dplyr::group_by(n) %>% 
+  count() %>% 
+  dplyr::arrange(n) %>% 
+  ungroup() %>% 
+  mutate(
+    name=factor(n, levels=n),
+    nn = as.numeric(nn)
+    )
+
+dist_ocorr_qtd_itens %>% 
+  ggplot(aes(x = name, y = nn)) +
+  geom_col(fill = "#C4161C") +
+  geom_text(aes(label = nn), vjust = -0.5, size = 2.5) +
+  labs(
+    y = "Ocorrências",
+    x = "Número de itens",
+    title = 'Ocorrências das quantidades de itens presentes nos pedidos recebidos'
+  )
+```
+```{r}
+dist_ocorr_qtd_itens %>% 
+  slice(c(7: 59)) %>% 
+  ggplot(aes(x = name, y = nn)) +
+  geom_col(fill = "#C4161C") +
+  geom_text(aes(label = nn), vjust = -0.5, size = 2.5) +
+  labs(
+    y = "Ocorrências",
+    x = "Número de itens",
+    title = 'Ocorrências das quantidades de itens presentes nos pedidos recebidos'
+  )
+```
+
+```{r}
+df_olist %>% 
+  group_by(review_score) %>% 
+  count() %>% 
+  ggplot(aes(x=review_score, y=n)) +
+  geom_col(fill="#A62B4D") + 
+  geom_text(aes(label=n), vjust = -0.5, size = 2.5) + 
+  labs(
+    y = 'Quantidade',
+    x = 'Notas',
+    title = 'Distribuição das avaliações realizadas'
+  )
+```
+
+```{r}
+df_olist %>% 
+  mutate(was_late = order_delivered_customer_date > order_estimated_delivery_date) %>%
+  group_by(was_late, review_score) %>% 
+  count() %>% 
+  ggplot(aes(fill=was_late, x=review_score, y=n)) +
+  geom_bar(position = "dodge", stat="identity") +
+  scale_y_continuous() +
+  labs(
+    y = 'Quantidade',
+    x = 'Nota',
+    title = 'Distribuição das notas em relação a entrega ter sido atrasada'
+  )
+
+### usar stacked com porcentagem para melhor visuzalização
+
+```
+
+
+```{r}
+df_olist %>% 
+  glimpse()
+```
+```{r}
+df_olist <- df_olist %>% 
+  mutate(was_late = order_delivered_customer_date > order_estimated_delivery_date)
+```
+
+
+```{r}
+df_olist %>% 
+  drop_na() %>% 
+  ggplot(aes(x=price, y=freight_value, color=was_late)) +
+  geom_point() +
+  scale_x_continuous(trans="log2") +
+  scale_y_continuous(trans="log2") + 
+  facet_grid(cols = vars(was_late))
+```
+
+```{r}
+
+count_states_late_deliveries <- df_olist %>% 
+  drop_na(was_late) %>% 
+  group_by(customer_state, was_late) %>% 
+  count() %>% 
+  filter(was_late == TRUE) %>% 
+  ungroup() %>% 
+  select(-was_late)
+
+
+count_states_deliveries <- df_olist %>% 
+  drop_na(was_late) %>% 
+  group_by(customer_state) %>% 
+  count()
+
+
+states_pct_late_orders <- df_olist %>% 
+  drop_na(was_late) %>% 
+  group_by(customer_state, was_late) %>% 
+  count() %>% 
+  left_join(count_states_deliveries, by="customer_state") %>% 
+  ungroup() %>% 
+  filter(was_late == TRUE) %>% 
+  mutate(late_percentage = (n.x / n.y) * 100) %>% 
+  mutate(abbrev_state = customer_state) %>% 
+  select(abbrev_state, late_percentage)
+
+  
+```
+
+
+```{r}
+
+brazilian_map <- read_state(showProgress = FALSE)
+
+brazilian_map
+```
+
+```{r}
+brazilian_map %>% 
+  left_join(states_pct_late_orders, by="abbrev_state") %>% 
+  ggplot(aes(fill = late_percentage), color = "black") +
+  geom_sf() +
+  scale_fill_viridis(name = "Estados com maior atraso nas entregas (%)", direction = -1)
+
+## olhar em relação a origem do produto (localização do vendedor)
+
+```
+
+
+```{r}
+
+df_olist %>% 
+  group_by(payment_type) %>% 
+  drop_na(order_approved_at, order_purchase_timestamp) %>% 
+  mutate(time_diff_to_approve = as.numeric(order_approved_at - order_purchase_timestamp) / 60) %>% 
+  mutate(time_diff_to_approve_scaled = scale(time_diff_to_approve)) %>% 
+  ungroup() %>% 
+  filter(time_diff_to_approve > quantile(time_diff_to_approve, c(.30)) & time_diff_to_approve < quantile(time_diff_to_approve, c(.70))) %>% 
+  ggplot(aes(x = time_diff_to_approve, group = payment_type, fill = payment_type)) +
+  geom_density(adjust = 1.5, alpha = .4) +
+  coord_cartesian(ylim = c(0, 0.04)) +
+  theme_ipsum() +
+  facet_wrap(~payment_type)
+  
+```
+
+```{r}
+df_olist %>% 
+  group_by(payment_type) %>% 
+  drop_na(order_approved_at, order_purchase_timestamp) %>% 
+  mutate(time_diff_to_approve = as.numeric(order_approved_at - order_purchase_timestamp) / 60) %>% 
+  mutate(time_diff_to_approve_scaled = scale(time_diff_to_approve)) %>% 
+  ungroup() %>% 
+  filter(time_diff_to_approve > quantile(time_diff_to_approve, c(.30)) & time_diff_to_approve < quantile(time_diff_to_approve, c(.70))) %>% 
+  filter(payment_type == "boleto") %>% 
+  filter(time_diff_to_approve < 180) %>% 
+  select(order_purchase_timestamp)
+
+```
+
+
+Procurar calcular a distancia entre o vendedor e o comprador
+Trazer também a representatividade do valor do frete em relação ao preço da compra
+
+
+```{r}
+df_olist %>% 
+  glimpse
+```
+
+```{r}
+# dtw time series
+# https://en.wikipedia.org/wiki/Dynamic_time_warping
+# autocorrelação e autocorrelação parcial
+
+```
+
+```{r}
+df_persona <- df_olist %>% 
+  filter(was_late == TRUE & review_score <= 3) %>% 
+  distinct(order_id, .keep_all = TRUE)
+
+
+make_word_vector <- function (tibble_column) {
+  Corpus(VectorSource(na.omit(tibble_column))) %>% 
+  tm_map(removeNumbers) %>% 
+  tm_map(removePunctuation) %>% 
+    tm_map(stripWhitespace) %>% 
+    tm_map(content_transformer(tolower)) %>% 
+    tm_map(removeWords, stopwords("portuguese"))
+}
+
+make_document_term_matrix <- function(docs) {
+  matrix <- TermDocumentMatrix(docs) %>% 
+    as.matrix
+  words = sort(rowSums(matrix), decreasing = TRUE)
+  data.frame(word = names(words), freq = words)
+}
+
+make_word_cloud <- function(df_word_freq) {
+  wordcloud2(data=df_word_freq, size=1.6, color='random-dark', shape = 'pentagon')
+}
+
+review_titles <-  make_word_vector(df_persona$review_comment_title) 
+review_comments <-  make_word_vector(df_persona$review_comment_message)
+
+
+titles_word_freq <- make_document_term_matrix(review_titles)
+comments_word_freq <- make_document_term_matrix(review_comments)
+
+make_word_cloud(titles_word_freq)
+make_word_cloud(comments_word_freq)
+
+```
+
+
+```{r}
+
+```
+
+
+
+
