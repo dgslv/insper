@@ -40,7 +40,11 @@ library(yardstick)
 library(readr)
 library(skimr)
 library(factoextra)
+library(keras)
+library(standardize)
 options(tidymodels.dark = TRUE)
+options(scipen = 999)
+
 ```
 
 
@@ -148,14 +152,14 @@ tune_lasso <- tune_grid(
 autoplot(tune_lasso)
 ```
 
-* Selecionando a quantidade de regularização pelos valores obtidos da curva roc e f1:
+Selecionando a quantidade de regularização pelos valores obtidos da curva roc e f1:
 
 ```{r}
 best_lasso <- tune_lasso %>% 
   select_best("roc_auc", "f_meas") 
 ```
 
-* Ajustando o modelo final:
+Ajustando o modelo final:
 
 ```{r}
 
@@ -163,7 +167,7 @@ fitted_lasso <- finalize_model(lasso, parameters = best_lasso) %>%
   fit(J1 ~ ., data=lasso_juiced)
 ```
 
-> Obtendo os resultados e salvando-os para cada valor de corte 
+Obtendo os resultados e salvando-os para cada valor de corte 
 
 ```{r}
 lasso_results <- fitted_lasso %>% 
@@ -177,7 +181,7 @@ results <- results %>%
 
 ### Regressão logística
 
-> Preparando a receita para a aplicação do modelo logístico
+Preparando a receita para a aplicação do modelo logístico
 
 ```{r, lr-recipe}
 
@@ -214,7 +218,7 @@ results <- results %>%
 
 <br /> 
 
-> Para a Árvore de Decisão, iremos realizar o *tuning* dos parâmetros para avaliarmos o seu poder preditivo e aplicaremos validação cruzada para estimarmos o erro de classificação.
+Para a Árvore de Decisão, iremos realizar o *tuning* dos parâmetros para avaliarmos o seu poder preditivo e aplicaremos validação cruzada para estimarmos o erro de classificação.
 
 ```{r, tree-recipe}
 tree_recipe <- recipe(J1 ~ ., train) %>% 
@@ -228,11 +232,11 @@ tree_baked <- bake(tree_prep, new_data = test)
 
 ```
 
-> Após a preparação da receita, iremos criar e ajustar a árvore de decisão tunada. 
+Após a preparação da receita, iremos criar e ajustar a árvore de decisão tunada. 
 
 <br />
 
-> Adicionando paralelismo
+Adicionando paralelismo
 
 ```{r, adding-do-parallel}
 doParallel::registerDoParallel(cores = 4)
@@ -310,9 +314,9 @@ results <- results %>%
 
 ### Floresta Aleatória
 
-> Assim como na Árvore de Decisão, também realizaremos o tunning dos hiperparâmetros e validação cruzada para estimarmos o erro de classificação.
+Assim como na Árvore de Decisão, também realizaremos o tunning dos hiperparâmetros e validação cruzada para estimarmos o erro de classificação.
 
-> Começaremos pela receita:
+Começaremos pela receita:
 
 ```{r}
 rf_recipe <- recipe(J1 ~ ., data = train)
@@ -324,7 +328,7 @@ rf_baked_train <- bake(rf_prep, new_data = NULL)
 rf_baked_test <- bake(rf_prep, new_data = test)
 ```
 
-> Seguiremos agora para a especificação do modelo:
+Seguiremos agora para a especificação do modelo:
 
 ```{r}
 dials::trees()
@@ -396,27 +400,32 @@ results
 
 # Exercício 2
 
-> Considere um modelo linear com todas as variáveis preditoras e um modelo linear com 5 componentes principais para previsão do valor mediano dos imóveis do banco de dados Boston (acesse com
+<br />
+
+Considere um modelo linear com todas as variáveis preditoras e um modelo linear com 5 componentes principais para previsão do valor mediano dos imóveis do banco de dados Boston (acesse com
 MASS::Boston ). Para avaliar o desempenho dos modelos, faça uma divisão dos dados de 80% para treinamento e o restante para teste. Indique qual métrica está sendo utilizada para a comparação dos modelos e defina o melhor modelo preditivo. Dicas:
 Note que queremos predizer o valor mediano dos imóveis, não médio. O que isso muda em nossa avaliação?
 Para comparar o modelo sem PCA e com PCA, você pode usar tune() no número de componentes e, na tune_grid() adicionar os valores 0 e 4. O valor zero fará com que o PCA não seja ajustado, enquanto que o valor 4 considerará 4 componentes principais.
 
+<br />
 
-```{r, echo=FALSE}
+
+```{r, echo=FALSE, results=FALSE}
 library(MASS)
 ```
 
 
-> Para a previsão do valor mediano dos imovéis, iremos minimizar o MAE (*Mean Absolute Error*), uma vez que isto indicaria uma boa previsibilidade de valores medianos. Em relação aos modelos que serão utilizados, segue a lista abaixo:
->
-> * Regressão Linear
-> * LASSO
-> * Ridge
-> * Árvore de Decisão
-> * Floresta Aleatória
-> * XGBoost
+Para a previsão do valor mediano dos imovéis, iremos minimizar o MAE (*Mean Absolute Error*), uma vez que isto indicaria uma boa previsibilidade de valores medianos. Em relação aos modelos que serão utilizados, segue a lista abaixo:
 
-> Carregaremos o dataset e veremos a distribuição dos valores obtidos em cada uma das colunas
+ * Regressão Linear
+ * LASSO
+ * Ridge
+ * Árvore de Decisão
+ * Floresta Aleatória
+ * XGBoost
+
+
+Carregaremos o dataset e veremos a distribuição dos valores obtidos em cada uma das colunas
 
 ```{r}
 df <- MASS::Boston
@@ -424,7 +433,7 @@ summary(df)
 
 ```
 
-> Separando os dados em treino e teste, e então criando os *cross-validation folds*
+Separando os dados em treino e teste, e então criando os *cross-validation folds*
 
 ```{r}
 
@@ -438,7 +447,7 @@ test <- testing(splits)
 cv_folds <- vfold_cv(train, v = 2)
 ```
 
-> Definindo tibble para armazenar os resultados obtidos por cada modelo em relação a métrica de interesse:
+Definindo tibble para armazenar os resultados obtidos por cada modelo em relação a métrica de interesse:
 
 ```{r}
 results <- tibble(model = NA, mae = NA_integer_)
@@ -446,7 +455,8 @@ results <- tibble(model = NA, mae = NA_integer_)
 
 ## Regressão Linear
 
-> Preparando a receita:
+
+Preparando a receita:
 
 ```{r}
 # escolher colunas a serem aplicadas pca
@@ -463,7 +473,7 @@ test_lm <- bake(lm_prep, new_data = test)
 ```
 
 
-* Estimando o erro de *MAE* do modelo linear com validação cruzada:
+Estimando o *MAE* do modelo linear com validação cruzada:
 
 ```{r}
 lm_fit <- linear_reg() %>% 
@@ -474,7 +484,7 @@ lm_fitted <- lm_fit %>%
   
 ```
 
-* Obtendo as previsões e o *MAE* do modelo linear ajustado e salvando-as no tibble de resultados:
+Obtendo as previsões e o *MAE* do modelo linear ajustado e salvando-as no tibble de resultados:
 
 ```{r}
 
@@ -486,9 +496,10 @@ results <- results %>%
       )
     )
 ```
+
 ## LASSO
 
-* Preparando a receita para o modelo LASSO:
+Preparando a receita para o modelo LASSO:
 
 ```{r}
 
@@ -544,7 +555,7 @@ lasso_tuned <- lasso_workflow %>%
 autoplot(lasso_tuned)
 ```
 
-* Selecionando a regularização pelo melhor valor obtido de *MAE*:
+Selecionando a regularização pelo melhor valor obtido de *MAE*:
 
 ```{r}
 best_lasso <- lasso_tuned %>% 
@@ -553,7 +564,7 @@ best_lasso <- lasso_tuned %>%
 best_lasso
 ```
 
-* Finalizando o modelo lasso:
+Finalizando o modelo lasso:
 
 ```{r}
 final_lasso <- finalize_model(lasso_fit, parameters = best_lasso) %>% 
@@ -561,7 +572,7 @@ final_lasso <- finalize_model(lasso_fit, parameters = best_lasso) %>%
 ```
 
 
-* Estimando o *MAE* do modelo lasso ajustado e salvado-o em nosso *tibble* de resultados:
+Estimando o *MAE* do modelo lasso ajustado e salvado-o em nosso *tibble* de resultados:
 
 
 ```{r}
@@ -770,6 +781,8 @@ results %>%
 
 ```
 
+## Seleção do melhor modelo
+
 O melhor modelo ajustado foi o Random Forest. Iremos visualizar os valores dos hiperparâmetros do modelo ajustado:
 
 ```{r}
@@ -786,5 +799,238 @@ rf_final %>%
   theme_minimal(12)
 
 ```
+
+
+# Exercício 3
+
+<br /> 
+Compare o desempenho preditivo de uma rede neural e de outro modelo de sua escolha na previsão da
+variável median_house_value (median house value for households within a block (measured in US
+Dollars)” do conjunto de dados “housing.csv”. A seguir são apresentadas as varáveis preditoras
+contidas nesse banco de dados:
+<br />
+longitude : a measure of how far west a house is; a higher value is farther west
+latitude : a measure of how far north a house is; a higher value is farther north
+housing_median_age : median age of a house within a block; a lower number is a newer building
+total_rooms : total number of rooms within a block
+total_bedrooms : total number of bedrooms within a block
+population : total number of people residing within a block
+households : total number of households, a group of people residing within a home unit, for a block
+median_income : median income for households within a block of houses (measured in tens of
+thousands of US Dollars)
+median_house_value : median house value for households within a block (measured in US Dollars)
+ocean_proximity : location of the house w.r.t ocean/sea
+
+<br />
+
+Apresente os resultados e a explicação em formato de relatório. Mais detalhes sobre esse conjunto de dados
+podem ser obtidos em https://github.com/ageron/handson-ml/tree/master/datasets/housing
+(https://github.com/ageron/handson-ml/tree/master/datasets/housing)
+
+
+## Lendo o conjunto de dados
+
+```{r}
+
+data <- read.csv('./housing.csv')
+
+names(data)
+
+```
+
+
+## Descrevendo o nosso conjunto
+
+```{r}
+summary(data)
+```
+
+Há 207 `missing values` em total_bedrooms, iremos remove-los dos nossos dados para prosseguirmos com a construção e avaliação dos modelos
+
+```{r}
+
+data <- data %>% 
+  drop_na() %>% 
+  dplyr::select(-latitude, -longitude)
+  
+```
+
+## Modelagem
+
+```{r}
+
+splits <- initial_split(data, strata = "median_house_value")
+
+train <- training(splits)
+test <- testing(splits)
+
+cv_folds <- vfold_cv(train, v = 10)
+
+```
+
+
+### XGBoost
+
+```{r}
+
+registerDoParallel(4)
+
+xg_recipe <- recipe(median_house_value ~ ., data = train) %>% 
+  step_string2factor(all_nominal()) %>% 
+  step_normalize(all_numeric(), -median_house_value) %>% 
+  step_dummy(ocean_proximity) 
+
+xg_cvfolds <- bake(prep(xg_recipe), new_data = NULL) %>% 
+  vfold_cv(v = 5)
+
+xg_pca_recipe <- xg_recipe %>% 
+  step_pca(-all_outcomes()) %>% 
+  prep()
+
+xg_cvfolds_pca <- bake(xg_pca_recipe, new_data = NULL) %>% 
+  vfold_cv(v = 5)
+
+xg_model <- boost_tree(
+    mode = "regression",
+    trees = 100,
+    min_n = tune(),
+    tree_depth = tune(),
+    learn_rate = tune(),
+    loss_reduction = tune()
+  ) %>%
+    set_engine("xgboost")
+
+xg_params <- parameters(
+    min_n(),
+    tree_depth(),
+    learn_rate(),
+    loss_reduction()
+  )
+
+xg_grid <- grid_max_entropy(
+    xg_params, 
+    size = 5
+  )
+
+
+xg_workflow <- workflow() %>%
+  add_model(xg_model) %>% 
+  add_formula(median_house_value ~ .)
+
+
+xg_tuned <- tune_grid(
+  xg_workflow,
+  resamples = xg_cvfolds,
+  grid = xg_grid,
+  metrics = yardstick::metric_set(yardstick::mae),
+  control = control_grid(verbose = TRUE)
+)
+
+xg_pca_tuned <- tune_grid(
+  xg_workflow,
+  resamples = xg_cvfolds_pca,
+  grid = xg_grid,
+  metrics = yardstick::metric_set(yardstick::mae),
+  control = control_grid(verbose = TRUE)
+)
+
+
+stopImplicitCluster()
+
+```
+
+#### Comparando os resultados com e sem pca
+```{r}
+
+xg_tuned %>% 
+  select_best("mae")
+```
+```{r}
+autoplot(xg_tuned)
+```
+#### Visualizando a importância das variáveis
+
+```{r}
+autoplot(xg_pca_tuned)
+```
+
+#### Finalizando o modelo
+
+```{r}
+
+best_xg <- xg_tuned %>% 
+  select_best("mae")
+
+train_recipe <- xg_recipe %>% 
+  prep() %>% 
+  bake(new_data = NULL)
+
+test_recipe <- bake(prep(xg_recipe), new_data = test)
+
+final_xg <- xg_model %>% 
+  finalize_model(best_xg) %>% 
+  fit(median_house_value ~ ., data = train_recipe) %>% 
+  predict(new_data = test_recipe) %>% 
+  bind_cols(test)
+
+
+xg_score <- final_xg %>% 
+  yardstick::metrics(median_house_value, .pred)
+
+
+xg_score
+```
+
+### Rede neural
+
+#### Realizando todos os passos e obtendo o _Mean Absolute Error_:
+
+```{r}
+
+nn_recipe <- recipe(median_house_value ~ ., data = train) %>% 
+  step_string2factor(all_nominal()) %>% 
+  step_normalize(all_numeric(), -median_house_value, -all_nominal()) %>% 
+  step_dummy(ocean_proximity) %>%
+  prep() 
+
+nn_train <- bake(nn_recipe, new_data = NULL)
+nn_test <- bake(nn_recipe, new_data = test)
+
+X <- as.matrix(nn_train %>% 
+  dplyr::select(-median_house_value))
+
+y <- nn_train$median_house_value
+
+input <- layer_input(shape = 10)
+
+output <- input %>%
+  #layer_dense(units = 10, activation="relu") %>%
+  layer_dense(units = 1)
+
+nn_model <- keras_model(input, output)
+
+nn_model %>% 
+  compile(
+    loss = "mse",
+    optimizer = "sgd"
+  ) %>% 
+  fit(X, y, validation_split = 0.2, epochs = 50)
+
+
+X_test <- as.matrix(nn_test %>% 
+                      dplyr::select(-median_house_value))
+
+y_test <- test$median_house_value
+
+preds <- nn_model %>% 
+  predict(X_test)
+
+Metrics::mae(y_test, preds[,1])
+```
+
+## Consideração final
+
+A partir dos _MAEs_ obtidos para os modelos XGBoost e Rede neural, podemos afirmar que o modelo que apresentou melhores resultados para o conjunto de dados em questão foi o XGBoost.
+
 
 
