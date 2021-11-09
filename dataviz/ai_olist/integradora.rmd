@@ -29,6 +29,12 @@ if(!require("wordcloud")){install.packages("wordcloud")}
 if(!require("RColorBrewer")){install.packages("RColorBrewer")}
 if(!require("wordcloud2")){install.packages("wordcloud2")}
 if(!require("tm")){install.packages("tm")}
+if(!require("factoextra")){install.packages("factoextra")}
+if(!require("stm")){install.packages("stm")}
+if(!require("lexiconPT")){install.packages("lexiconPT")}
+if(!require("tidytext")){install.packages("tidytext")}
+if(!require("abjutils")){install.packages("abjutils")}
+if(!require("stmCorrViz")){install.packages("stmCorrViz")}
 ```
 
 
@@ -280,11 +286,19 @@ df_olist %>%
 
 ```
 
+
+# :: Word Cloud
+
 ```{r}
 df_persona <- df_olist %>% 
   filter(was_late == TRUE & review_score <= 3) %>% 
-  distinct(order_id, .keep_all = TRUE)
-
+  distinct(order_id, .keep_all = TRUE) %>% 
+  drop_na(review_comment_title, review_comment_message) %>% 
+  mutate(
+    review_comment_title = abjutils::rm_accent(review_comment_title),
+    review_comment_message = abjutils::rm_accent(review_comment_message)
+  )
+         
 
 make_word_vector <- function (tibble_column) {
   Corpus(VectorSource(na.omit(tibble_column))) %>% 
@@ -295,7 +309,7 @@ make_word_vector <- function (tibble_column) {
     tm_map(removeWords, stopwords("portuguese"))
 }
 
-make_document_term_matrix <- function(docs) {
+make_document_term_matrix <- function(docs, return_word_freq = TRUE) {
   matrix <- TermDocumentMatrix(docs) %>% 
     as.matrix
   words = sort(rowSums(matrix), decreasing = TRUE)
@@ -315,13 +329,151 @@ comments_word_freq <- make_document_term_matrix(review_comments)
 
 make_word_cloud(titles_word_freq)
 make_word_cloud(comments_word_freq)
+```
 
+
+# :: Clustering 
+
+```{r}
+curr_stopwords <- c(
+  abjutils::rm_accent(tm::stopwords("pt")),
+  c("vai", "porque", "vou", "ai", "pra", "entao")
+)
+
+doc_process_prep <- function (data, metadata) {
+  proc <- stm::textProcessor(
+    data,
+    metadata = metadata,
+    language = "portuguese",
+    customstopwords = curr_stopwords
+  )
+  
+  out <- stm::prepDocuments(
+    proc$documents,
+    proc$vocab,
+    proc$meta,
+    lower.thresh = 5
+  )
+  
+  ## verificar forma de reutilizar
+}
+```
+
+
+## : Titles
+
+### : Processing
+
+```{r}
+titles_proc <- stm::textProcessor(
+  df_persona$review_comment_title,
+  metadata = df_persona,
+  language = "portuguese",
+  customstopwords = curr_stopwords
+)
+
+titles_out <- stm::prepDocuments(
+  titles_proc$documents,
+  titles_proc$vocab,
+  titles_proc$meta,
+  lower.thresh = 5
+)
+
+titles_best_k <- stm::searchK(
+  titles_out$documents,
+  titles_out$vocab,
+  K = c(2:10),
+  data = titles_proc$meta
+)
+
+
+plot(titles_best_k)
+```
+
+### : Evaluating
+
+```{r}
+titles_fit <- stm(
+  documents = titles_proc$documents,
+  vocab = titles_proc$vocab,
+  data = titles_proc$meta,
+  K = 8,
+  max.em.its = 75,
+  init.type = "Random",
+  verbose = FALSE
+)
+```
+
+```{r}
+plot(titles_fit, "summary")
+```
+
+```{r}
+stm::labelTopics(titles_fit)
+```
+
+```{r}
+stmCorrViz::stmCorrViz(titles_fit, file_out = "titles_corrviz.html")
+```
+
+## : Comments
+
+### : Processing
+```{r}
+
+comments_proc <- stm::textProcessor(
+  df_persona$review_comment_message,
+  metadata = df_persona,
+  language = "portuguese",
+  customstopwords = curr_stopwords
+)
+
+comments_out <- stm::prepDocuments(
+  comments_proc$documents,
+  comments_proc$vocab,
+  comments_proc$meta,
+  lower.thresh = 5
+)
+
+comments_best_k <- stm::searchK(
+  comments_out$documents,
+  comments_out$vocab,
+  K = c(2:10),
+  data = comments_proc$meta
+)
+
+
+plot(comments_best_k)
+```
+
+### : Evaluating
+
+```{r}
+comments_fit <- stm(
+  documents = comments_proc$documents,
+  vocab = comments_proc$vocab,
+  data = comments_proc$meta,
+  K = 8,
+  max.em.its = 75,
+  init.type = "Random",
+  verbose = FALSE
+)
+```
+
+```{r}
+plot(comments_fit, "summary")
 ```
 
 
 ```{r}
-
+stmCorrViz::stmCorrViz(comments_fit, file_out = "comments_corrviz.html")
 ```
+
+
+
+
+
+
 
 
 
