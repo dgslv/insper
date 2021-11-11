@@ -6,7 +6,7 @@ output:
 toc_float: TRUE
 ---
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+knitr::opts_chunk$set(cache=TRUE,  message=FALSE, warning=FALSE, results='hide')
 ```
 
 
@@ -35,6 +35,7 @@ if(!require("lexiconPT")){install.packages("lexiconPT")}
 if(!require("tidytext")){install.packages("tidytext")}
 if(!require("abjutils")){install.packages("abjutils")}
 if(!require("stmCorrViz")){install.packages("stmCorrViz")}
+if(!require("BBmisc")){install.packages("BBmisc")}
 ```
 
 
@@ -55,6 +56,8 @@ df_products <- read_csv('data/olist_products_dataset.csv')
 ```
 
 
+
+
 # :: Join
 ```{r}
 df_olist <- df_orders %>% 
@@ -68,6 +71,8 @@ df_olist <- df_orders %>%
 
 ```{r}
 ```
+
+
 
 
 # :: View
@@ -287,11 +292,12 @@ df_olist %>%
 ```
 
 
+
 # :: Word Cloud
 
 ```{r}
 df_persona <- df_olist %>% 
-  filter(was_late == TRUE & review_score <= 3) %>% 
+  filter(was_late == TRUE) %>% 
   distinct(order_id, .keep_all = TRUE) %>% 
   drop_na(review_comment_title, review_comment_message) %>% 
   mutate(
@@ -330,7 +336,6 @@ comments_word_freq <- make_document_term_matrix(review_comments)
 make_word_cloud(titles_word_freq)
 make_word_cloud(comments_word_freq)
 ```
-
 
 # :: Clustering 
 
@@ -416,6 +421,7 @@ stm::labelTopics(titles_fit)
 stmCorrViz::stmCorrViz(titles_fit, file_out = "titles_corrviz.html")
 ```
 
+
 ## : Comments
 
 ### : Processing
@@ -471,6 +477,137 @@ stmCorrViz::stmCorrViz(comments_fit, file_out = "comments_corrviz.html")
 
 
 
+# : Time to deliver to carrier
+
+## : Distribution was_late
+
+```{r}
+my_normalize <- function(m) {
+  (m - min(m))/(max(m)-min(m))
+}
+
+df_olist %>% 
+  distinct(order_id, .keep_all = TRUE) %>% 
+  na.omit(was_late) %>% 
+  group_by(was_late) %>% 
+  mutate(time_to_carrier = as.integer(
+    difftime(order_delivered_carrier_date, order_purchase_timestamp, units = "days")), 
+         total = n()
+         ) %>% 
+  ungroup() %>% 
+  select(was_late, time_to_carrier, order_id) %>% 
+  group_by(was_late, time_to_carrier) %>% 
+  count() %>% 
+  ungroup() %>% 
+  group_by(was_late) %>% 
+  ggplot(aes(x = time_to_carrier, y = n, fill = was_late, color = was_late)) +
+  geom_col() 
+
+         
+```
+
+
+## : Brazilian Map: States mean time to carrier
+```{r}
+df <- df_olist %>% 
+  distinct(order_id, .keep_all = TRUE) %>% 
+  drop_na(order_delivered_carrier_date, order_purchase_timestamp, was_late) %>% 
+  mutate(
+    time_to_carrier = as.integer(
+    difftime(order_delivered_carrier_date, order_purchase_timestamp, units = "days")),
+    abbrev_state = seller_state
+  ) %>% 
+  group_by(abbrev_state) %>% 
+  mutate(
+    state_mean_time_to_carrier = mean(time_to_carrier)
+  ) %>% 
+  ungroup()
+  
+df_map <- df %>% 
+  select(abbrev_state, state_mean_time_to_carrier, was_late) %>% 
+  distinct(abbrev_state, .keep_all = TRUE)
+
+brazilian_map %>% 
+  left_join(df_map, by="abbrev_state") %>% 
+  ggplot(aes(fill = state_mean_time_to_carrier), color = "black") +
+  geom_sf() +
+  scale_fill_viridis(name = "Tempo médio para a encomenda chegar no carrier", direction = -1)
+
+df_olist %>% 
+  filter(seller_state == "AM") %>%
+  mutate(
+    time_to_carrier = as.integer(
+    difftime(order_delivered_carrier_date, order_purchase_timestamp, units = "days"))
+  ) %>% 
+  select(time_to_carrier) 
+  
+
+df %>% 
+  filter(abbrev_state == "SP")
+```
+## : Dist - Was late from carrier vs was late
+
+```{r}
+
+df_olist %>% 
+  mutate(
+    was_late = order_delivered_customer_date > order_estimated_delivery_date,
+    was_late_from_carrier = order_delivered_carrier_date > shipping_limit_date
+  ) %>% 
+  group_by(was_late, was_late_from_carrier) %>% 
+  count() %>% 
+  na.omit %>% 
+  ggplot(
+    aes(
+      x = was_late,
+      y = n,
+      fill = was_late_from_carrier,
+      color = was_late_from_carrier
+    )
+  ) +
+  geom_col() +
+  labs(
+    title = 'Proporção de atrasos desde o carrier em relação\naos atrasos na entrega'
+  )
+  
+
+```
+
+
+```{r}
+
+comp_limit_date <- function (df, title = '') {
+  df %>% 
+    mutate(
+      was_late_from_carrier = ifelse(
+        as.numeric((order_delivered_carrier_date - shipping_limit_date) / 1440) > 0,
+        TRUE,
+        FALSE
+        )
+    ) %>% 
+    group_by(was_late_from_carrier) %>% 
+    count() %>% 
+    ggplot(
+      aes(
+        x = was_late_from_carrier,
+        y = n
+      )
+    ) +
+    geom_col() +
+    labs(
+      title = title,
+      x = 'Atrasado desde o carrier',
+      y = 'Total'
+    )
+}
+
+comp_limit_date(df_persona, 'Persona vs estava atrasado desde o carrier')
+comp_limit_date(df_olist, 'População vs estava atrasado desde o carrier')
+```
+
+
+```{r}
+```
 
 
 
