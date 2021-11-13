@@ -337,6 +337,25 @@ make_word_cloud(titles_word_freq)
 make_word_cloud(comments_word_freq)
 ```
 
+### :: Checking comments representation in each group 
+
+```{r}
+
+group_prop <- df_olist %>%
+  group_by(was_late) %>%
+  count() %>% 
+  na.omit
+  
+comment_group_prop <- df_olist %>%
+  na.omit(was_late) %>% 
+  mutate(
+    has_comment = ifelse(is.na(review_comment_message), TRUE, FALSE)
+  ) %>% 
+  group_by(was_late, has_comment) %>% 
+    count()
+```
+
+
 # :: Clustering 
 
 ```{r}
@@ -549,14 +568,20 @@ df %>%
 
 ```{r}
 
-df_olist %>% 
+df <- df_olist  %>% 
   mutate(
     was_late = order_delivered_customer_date > order_estimated_delivery_date,
     was_late_from_carrier = order_delivered_carrier_date > shipping_limit_date
   ) %>% 
+  na.omit
+
+
+df %>% 
   group_by(was_late, was_late_from_carrier) %>% 
   count() %>% 
-  na.omit %>% 
+  mutate(
+    perc = n / nrow(df)
+  ) %>% 
   ggplot(
     aes(
       x = was_late,
@@ -565,12 +590,11 @@ df_olist %>%
       color = was_late_from_carrier
     )
   ) +
-  geom_col() +
+  geom_col(position = "fill") +
   labs(
     title = 'Proporção de atrasos desde o carrier em relação\naos atrasos na entrega'
   )
   
-
 ```
 
 
