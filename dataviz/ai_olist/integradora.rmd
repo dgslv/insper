@@ -42,6 +42,7 @@ if(!require("BBmisc")){install.packages("BBmisc")}
 # :: Read
 
 ```{r, message=FALSE}
+
 #unzipped
 df_sellers <- read_csv('data/olist_sellers_dataset.csv')
 
@@ -337,7 +338,7 @@ make_word_cloud(titles_word_freq)
 make_word_cloud(comments_word_freq)
 ```
 
-### :: Checking comments representation in each group 
+### :: Checking comments representation in each delivery group 
 
 ```{r}
 
@@ -346,13 +347,54 @@ group_prop <- df_olist %>%
   count() %>% 
   na.omit
   
-comment_group_prop <- df_olist %>%
-  na.omit(was_late) %>% 
+df_olist %>%
+  filter(!is.na(was_late)) %>% 
   mutate(
-    has_comment = ifelse(is.na(review_comment_message), TRUE, FALSE)
+    has_comment = ifelse(is.na(review_comment_message), "Teve comentário", "Não teve comentário")
   ) %>% 
   group_by(was_late, has_comment) %>% 
-    count()
+    count() %>% 
+  ungroup() %>% 
+  mutate(
+    pct = n / sum(n)
+  ) %>% 
+  ggplot(
+    aes(
+      x = was_late,
+      y = pct,
+      fill = has_comment
+    )
+  ) + 
+  geom_col(position = "fill") +
+  scale_y_continuous(
+    label = scales::percent,
+    name = "Porcentagem"
+  ) + 
+  scale_fill_discrete(
+    name = ""
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "TRUE" = "Entrega atrasou",
+      "FALSE" = "Entrega não atrasou"
+    ),
+    name = ""
+  ) +
+  labs(
+    title = "Pedidos e comentários",
+    subtitle = "Distribuição de comentários por entregas com e sem atraso"
+  ) +
+  theme(
+    plot.subtitle = element_text(angle = 20)
+  ) +
+  theme_classic()
+  
+
+
+janitor::tabyl(df_olist$was_late) %>% 
+  mutate(
+    across(contains("percent"), ~scales::percent(.))
+  )
 ```
 
 
@@ -378,7 +420,6 @@ doc_process_prep <- function (data, metadata) {
     proc$meta,
     lower.thresh = 5
   )
-  
   ## verificar forma de reutilizar
 }
 ```
@@ -417,15 +458,18 @@ plot(titles_best_k)
 ### : Evaluating
 
 ```{r}
-titles_fit <- stm(
+set.seed(123)
+
+(titles_fit <- stm(
   documents = titles_proc$documents,
   vocab = titles_proc$vocab,
+  
   data = titles_proc$meta,
   K = 8,
   max.em.its = 75,
   init.type = "Random",
   verbose = FALSE
-)
+))
 ```
 
 ```{r}
@@ -433,7 +477,24 @@ plot(titles_fit, "summary")
 ```
 
 ```{r}
-stm::labelTopics(titles_fit)
+
+data.frame(topics = 1:8, stm::labelTopics(titles_fit)[2]) 
+
+
+titles_fit_b %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+ ungroup() %>%
+    mutate(topic = paste0("Topic ", topic),
+         term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = as.factor(topic))) +
+  geom_col(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free_y") +
+  coord_flip() +
+  scale_x_reordered() +
+  labs(x = NULL, y = expression(beta),
+       title = "Highest word probabilities for each topic",
+       subtitle = "Different words are associated with different topics")
 ```
 
 ```{r}
@@ -474,6 +535,8 @@ plot(comments_best_k)
 ### : Evaluating
 
 ```{r}
+
+set.seed(123)
 comments_fit <- stm(
   documents = comments_proc$documents,
   vocab = comments_proc$vocab,
@@ -564,6 +627,7 @@ df_olist %>%
 df %>% 
   filter(abbrev_state == "SP")
 ```
+
 ## : Dist - Was late from carrier vs was late
 
 ```{r}
@@ -575,28 +639,50 @@ df <- df_olist  %>%
   ) %>% 
   na.omit
 
-
-df %>% 
+plot_diff_between_late_types <- function (df, title = "Diferentes atrasos") {
+  df %>% 
   group_by(was_late, was_late_from_carrier) %>% 
   count() %>% 
   mutate(
-    perc = n / nrow(df)
+    perc = n / nrow(df),
+    was_late_from_carrier = ifelse(was_late_from_carrier, "Vendedor atrasou a entrega na transportadora", "Transportadora atrasou a entrega para o consumidor")
   ) %>% 
   ggplot(
     aes(
       x = was_late,
       y = n,
       fill = was_late_from_carrier,
-      color = was_late_from_carrier
     )
+  ) +
+ scale_y_continuous(
+    label = scales::percent,
+    name = "Porcentagem"
+  ) + 
+  scale_fill_discrete(
+    name = ""
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "TRUE" = "Entrega atrasou",
+      "FALSE" = "Entrega não atrasou"
+    ),
+    name = ""
   ) +
   geom_col(position = "fill") +
   labs(
-    title = 'Proporção de atrasos desde o carrier em relação\naos atrasos na entrega'
+    title =  title,
+    subtitle = 'Visualizando os diferentes grupos de atraso: Vendedor x Transportadora'
+  ) +
+  theme_classic() +
+  theme(
+    plot.subtitle = element_text(size = 10),
+    legend.position="bottom"
   )
-  
-```
+}
 
+plot_diff_between_late_types(df)
+
+```
 
 ```{r}
 
@@ -630,9 +716,32 @@ comp_limit_date(df_olist, 'População vs estava atrasado desde o carrier')
 ```
 
 
+# :: Analysing in terms of our persona 
+
 ```{r}
+
+get_was_late_from_carrier <- function (df) {
+  df %>% 
+    mutate(
+      was_late_from_carrier = order_delivered_carrier_date > shipping_limit_date
+    )
+}
+
+df_olist %>% 
+  filter(seller_city == "sao paulo") %>% 
+  na.omit(was_late) %>% 
+  get_was_late_from_carrier %>% 
+  plot_diff_between_late_types(
+    df = .,
+    title = "Diferença entre atrasos para vendedores do estado de São Paulo"
+  )
+
+
 ```
 
+```{r}
+
+```
 
 
 
